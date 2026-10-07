@@ -1,0 +1,107 @@
+project:
+  name: PostgreSQL-Query-Optimization
+  seed: 42
+  out_dir: data/out
+  models_dir: models
+
+schema:
+  tables:
+    departments:
+      num_rows: 6
+      columns:
+        - name: dept_id
+          type: int
+          primary_key: true
+        - name: dept_name
+          categories: [Engineering, Sales, HR, Operations, Marketing, Finance]
+        - name: region
+          categories: [South, North, West, East]
+
+    employees:
+      num_rows: 5000
+      columns:
+        - name: emp_id
+          type: int
+          primary_key: true
+        - name: name
+          type: text
+        - name: dept_id
+          type: int
+          foreign_key: departments.dept_id
+        - name: age
+          range: [22, 65]
+        - name: experience_years
+          range: [0, 40]
+        - name: salary
+          range: [30000, 250000]
+        - name: city
+          categories: [Bangalore, Delhi, Mumbai, Hyderabad, Pune, Chennai]
+
+    projects:
+      num_rows: 5000
+      columns:
+        - name: proj_id
+          type: int
+          primary_key: true
+        - name: dept_id
+          type: int
+          foreign_key: departments.dept_id
+        - name: priority
+          categories: [Low, Medium, High, Critical]
+        - name: budget_tier
+          range: [1, 5]
+
+    assignments:
+      num_rows: 10000
+      columns:
+        - name: assign_id
+          type: int
+          primary_key: true
+        - name: emp_id
+          type: int
+          foreign_key: employees.emp_id
+        - name: proj_id
+          type: int
+          foreign_key: projects.proj_id
+        - name: hours_per_week
+          range: [5, 50]
+
+    locations:
+      num_rows: 100
+      columns:
+        - name: loc_id
+          type: int
+          primary_key: true
+        - name: city
+          categories: [Bangalore, Delhi, Mumbai, Hyderabad, Pune, Chennai]
+        - name: office_tier
+          range: [1, 3]
+
+    budgets:
+      num_rows: 5000
+      columns:
+        - name: budget_id
+          type: int
+          primary_key: true
+        - name: proj_id
+          type: int
+          foreign_key: projects.proj_id
+        - name: approved_amount
+          range: [10000, 1000000]
+
+correlation:
+  same_table:
+    employees:
+      dept_to_city:
+        Engineering: { Bangalore: 0.85, Delhi: 0.05, Mumbai: 0.05, Hyderabad: 0.05 }
+        Sales: { Delhi: 0.50, Mumbai: 0.30, Bangalore: 0.10, Chennai: 0.10 }
+        HR: { Mumbai: 0.60, Pune: 0.20, Delhi: 0.20 }
+        Operations: { Hyderabad: 0.50, Bangalore: 0.30, Chennai: 0.20 }
+    locations:
+      city_to_office_tier:
+        Bangalore: { 1: 0.75, 2: 0.20, 3: 0.05 }
+        Delhi: { 1: 0.40, 2: 0.50, 3: 0.10 }
+  cross_table:
+    city_to_budget_tier:
+      Bangalore: { 5: 0.60, 4: 0.25, 3: 0.10, 2: 0.03, 1: 0.02 }
+      Delhi: { 1: 0.50, 2: 0.30, 3: 0.10, 4: 0.05, 5: 0.05 }

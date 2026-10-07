@@ -1,0 +1,101 @@
+id,category,sql,true_count,postgres_estimate,factorjoin_estimate,postgres_latency_ms,factorjoin_latency_ms
+362,Category A: Single Independent,SELECT COUNT(*) FROM locations WHERE office_tier = 2,5000,17300,5000.0,5.0,0.213
+74,Category E: Multi-Table Complex Join (4+ Tables),SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id=d.dept_id JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id JOIN budgets b ON p.proj_id=b.proj_id WHERE e.city = 'Bangalore' AND p.budget_tier = 5 AND e.salary BETWEEN 82009 AND 142009,100,1673,25.57,3879.35,6.344
+375,Category B: Single Correlated,SELECT COUNT(*) FROM employees WHERE city = 'Bangalore' AND salary BETWEEN 75963 AND 125963,1379,5677,357.71,5.0,3.27
+156,Category A: Single Independent,SELECT COUNT(*) FROM locations WHERE office_tier = 3,5000,20347,5000.0,5.0,0.982
+105,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Delhi' AND p.budget_tier = 5,129775,617633,54.57,1573.7,4.95
+395,Category A: Single Independent,SELECT COUNT(*) FROM locations WHERE office_tier = 1,5000,7962,5000.0,5.0,0.249
+378,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Delhi' AND p.budget_tier = 4,110482,309630,34.52,986.5,4.554
+125,Category B: Single Correlated,SELECT COUNT(*) FROM employees WHERE city = 'Mumbai' AND salary BETWEEN 84578 AND 134578,1101,4572,288.24,5.0,2.761
+69,Category A: Single Independent,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 56641 AND 111225,5000,13499,1407.0,5.0,1.909
+451,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Bangalore' AND p.budget_tier = 2,1134995,1778957,41.92,866.61,2.974
+10,Category E: Multi-Table Complex Join (4+ Tables),SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id=d.dept_id JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id JOIN budgets b ON p.proj_id=b.proj_id WHERE e.city = 'Delhi' AND p.budget_tier = 5 AND e.salary BETWEEN 71016 AND 131016,100,2034,17.12,2523.58,3.927
+195,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Pune' AND p.budget_tier = 3,4167710,19761840,4.72,786.18,5.372
+407,Category A: Single Independent,SELECT COUNT(*) FROM projects WHERE priority = 'Medium',5000,17494,5000.0,5.0,0.01
+85,Category A: Single Independent,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 62217 AND 90525,5000,7536,689.0,5.0,0.861
+372,Category E: Multi-Table Complex Join (4+ Tables),SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id=d.dept_id JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id JOIN budgets b ON p.proj_id=b.proj_id WHERE e.city = 'Bangalore' AND p.budget_tier = 4 AND e.salary BETWEEN 108770 AND 168770,100,4231,15.46,2481.49,4.906
+389,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Hyderabad' AND p.budget_tier = 1,4167710,9000609,36.35,640.13,5.177
+496,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Pune' AND p.budget_tier = 5,1258343,1691820,9.99,596.81,2.714
+31,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Mumbai' AND p.budget_tier = 4,119785,566924,41.18,1000.03,2.163
+317,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Pune' AND p.budget_tier = 4,784457,1267668,6.32,778.79,3.719
+409,Category D: 3-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id WHERE e.city = 'Hyderabad' AND p.budget_tier = 2 AND a.hours_per_week BETWEEN 22 AND 42,8341040,2263248948,11.54,1767.99,3.652
+491,Category A: Single Independent,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 94641 AND 164364,5000,7451,1804.0,5.0,0.974
+492,Category A: Single Independent,SELECT COUNT(*) FROM projects WHERE priority = 'Medium',5000,10808,5000.0,5.0,0.017
+281,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Bangalore' AND p.budget_tier = 2,1134995,3472874,41.92,1143.55,3.859
+357,Category B: Single Correlated,SELECT COUNT(*) FROM employees WHERE city = 'Bangalore' AND salary BETWEEN 72431 AND 122431,1379,6587,355.78,5.0,4.558
+77,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Mumbai' AND p.budget_tier = 1,933327,1669869,49.72,1512.3,5.219
+462,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Bangalore' AND p.budget_tier = 2,1134995,3689850,41.92,925.7,2.936
+498,Category A: Single Independent,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 46531 AND 89335,5000,13364,1056.0,5.0,0.264
+212,Category D: 3-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id WHERE e.city = 'Pune' AND p.budget_tier = 1 AND a.hours_per_week BETWEEN 13 AND 33,8341040,2196941564,3.56,3151.47,7.816
+102,Category A: Single Independent,SELECT COUNT(*) FROM locations WHERE office_tier = 2,5000,18977,5000.0,5.0,0.564
+335,Category E: Multi-Table Complex Join (4+ Tables),SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id=d.dept_id JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id JOIN budgets b ON p.proj_id=b.proj_id WHERE e.city = 'Mumbai' AND p.budget_tier = 4 AND e.salary BETWEEN 81195 AND 141195,100,26613,12.87,2427.04,5.391
+476,Category A: Single Independent,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 80331 AND 129192,5000,11042,1277.0,5.0,0.362
+337,Category D: 3-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id WHERE e.city = 'Mumbai' AND p.budget_tier = 3 AND a.hours_per_week BETWEEN 19 AND 39,1902725,29197078,14.58,3127.34,8.169
+441,Category A: Single Independent,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 62117 AND 105281,5000,19634,1108.0,5.0,0.296
+174,Category E: Multi-Table Complex Join (4+ Tables),SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id=d.dept_id JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id JOIN budgets b ON p.proj_id=b.proj_id WHERE e.city = 'Bangalore' AND p.budget_tier = 4 AND e.salary BETWEEN 110428 AND 170428,100,34539,15.34,3277.19,5.817
+3,Category D: 3-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id WHERE e.city = 'Pune' AND p.budget_tier = 2 AND a.hours_per_week BETWEEN 17 AND 37,8341040,2451167117,2.44,3396.21,4.371
+334,Category A: Single Independent,SELECT COUNT(*) FROM projects WHERE priority = 'Critical',5000,6869,5000.0,5.0,0.009
+410,Category E: Multi-Table Complex Join (4+ Tables),SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id=d.dept_id JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id JOIN budgets b ON p.proj_id=b.proj_id WHERE e.city = 'Mumbai' AND p.budget_tier = 5 AND e.salary BETWEEN 96321 AND 156321,100,27036,20.3,2071.0,4.582
+71,Category A: Single Independent,SELECT COUNT(*) FROM locations WHERE office_tier = 2,5000,22670,5000.0,5.0,0.474
+210,Category A: Single Independent,SELECT COUNT(*) FROM locations WHERE office_tier = 3,5000,14199,5000.0,5.0,0.885
+64,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Bangalore' AND p.budget_tier = 5,638796,1325312,81.53,1081.18,4.165
+385,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Bangalore' AND p.budget_tier = 1,1134995,3083071,62.28,1302.75,6.043
+94,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Delhi' AND p.budget_tier = 2,773856,3719735,28.06,1615.94,6.936
+486,Category A: Single Independent,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 83744 AND 108539,5000,18275,677.0,5.0,0.403
+186,Category E: Multi-Table Complex Join (4+ Tables),SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id=d.dept_id JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id JOIN budgets b ON p.proj_id=b.proj_id WHERE e.city = 'Bangalore' AND p.budget_tier = 5 AND e.salary BETWEEN 86900 AND 146900,100,6620,25.37,3484.61,5.61
+34,Category D: 3-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id WHERE e.city = 'Hyderabad' AND p.budget_tier = 1 AND a.hours_per_week BETWEEN 16 AND 36,8341040,2659019521,17.16,2639.1,6.211
+78,Category E: Multi-Table Complex Join (4+ Tables),SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id=d.dept_id JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id JOIN budgets b ON p.proj_id=b.proj_id WHERE e.city = 'Delhi' AND p.budget_tier = 5 AND e.salary BETWEEN 91289 AND 151289,100,2521,17.16,3531.63,5.298
+1,Category B: Single Correlated,SELECT COUNT(*) FROM employees WHERE city = 'Bangalore' AND salary BETWEEN 104886 AND 154886,1379,3991,349.71,5.0,6.92
+12,Category B: Single Correlated,SELECT COUNT(*) FROM employees WHERE city = 'Mumbai' AND salary BETWEEN 85920 AND 135920,1101,2403,288.9,5.0,3.854
+416,Category A: Single Independent,SELECT COUNT(*) FROM projects WHERE priority = 'Medium',5000,20427,5000.0,5.0,0.012
+23,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Delhi' AND p.budget_tier = 1,773856,1115530,41.68,1111.65,6.007
+73,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Delhi' AND p.budget_tier = 2,773856,3310889,28.06,1523.78,4.663
+183,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Bangalore' AND p.budget_tier = 4,209213,352483,51.57,1350.85,5.932
+132,Category E: Multi-Table Complex Join (4+ Tables),SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id=d.dept_id JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id JOIN budgets b ON p.proj_id=b.proj_id WHERE e.city = 'Bangalore' AND p.budget_tier = 4 AND e.salary BETWEEN 80559 AND 140559,100,19177,16.16,2836.63,6.521
+411,Category D: 3-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id WHERE e.city = 'Mumbai' AND p.budget_tier = 5 AND a.hours_per_week BETWEEN 20 AND 40,268988,37887014,30.96,2696.65,2.579
+194,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Bangalore' AND p.budget_tier = 4,209213,342351,51.57,1342.36,4.836
+56,Category A: Single Independent,SELECT COUNT(*) FROM assignments WHERE hours_per_week BETWEEN 8 AND 23,5000,18710,5000.0,5.0,0.457
+149,Category E: Multi-Table Complex Join (4+ Tables),SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id=d.dept_id JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id JOIN budgets b ON p.proj_id=b.proj_id WHERE e.city = 'Bangalore' AND p.budget_tier = 4 AND e.salary BETWEEN 83524 AND 143524,100,25825,16.08,2997.11,7.262
+19,Category A: Single Independent,SELECT COUNT(*) FROM locations WHERE office_tier = 1,5000,20672,5000.0,5.0,0.451
+205,Category A: Single Independent,SELECT COUNT(*) FROM locations WHERE office_tier = 3,5000,18041,5000.0,5.0,1.102
+79,Category A: Single Independent,SELECT COUNT(*) FROM projects WHERE priority = 'High',5000,12843,5000.0,5.0,0.014
+495,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Mumbai' AND p.budget_tier = 5,137536,550453,65.09,880.88,2.624
+263,Category B: Single Correlated,SELECT COUNT(*) FROM employees WHERE city = 'Delhi' AND salary BETWEEN 89952 AND 139952,923,2528,243.3,5.0,2.795
+324,Category D: 3-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id WHERE e.city = 'Pune' AND p.budget_tier = 3 AND a.hours_per_week BETWEEN 22 AND 42,8341040,2561262982,2.23,2312.72,3.204
+484,Category A: Single Independent,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 90428 AND 133168,5000,21851,1125.0,5.0,0.48
+80,Category A: Single Independent,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 49508 AND 124351,5000,10100,1882.0,5.0,0.681
+40,Category A: Single Independent,SELECT COUNT(*) FROM locations WHERE office_tier = 2,5000,19533,5000.0,5.0,0.569
+452,Category B: Single Correlated,SELECT COUNT(*) FROM employees WHERE city = 'Bangalore' AND salary BETWEEN 96479 AND 146479,1379,5139,353.58,5.0,1.623
+47,Category D: 3-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id WHERE e.city = 'Hyderabad' AND p.budget_tier = 3 AND a.hours_per_week BETWEEN 15 AND 35,8341040,2069389422,10.5,2227.67,4.178
+239,Category A: Single Independent,SELECT COUNT(*) FROM projects WHERE priority = 'High',5000,14108,5000.0,5.0,0.01
+392,Category D: 3-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id WHERE e.city = 'Hyderabad' AND p.budget_tier = 4 AND a.hours_per_week BETWEEN 20 AND 40,1560954,81939271,14.32,2491.57,6.376
+353,Category A: Single Independent,SELECT COUNT(*) FROM assignments WHERE hours_per_week BETWEEN 6 AND 29,5000,24519,5000.0,5.0,1.179
+342,Category A: Single Independent,SELECT COUNT(*) FROM assignments WHERE hours_per_week BETWEEN 17 AND 31,5000,23280,5000.0,5.0,0.991
+278,Category A: Single Independent,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 99626 AND 126586,5000,8599,686.0,5.0,1.751
+291,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Pune' AND p.budget_tier = 2,4167710,13239309,5.14,632.95,3.59
+318,Category E: Multi-Table Complex Join (4+ Tables),SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id=d.dept_id JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id JOIN budgets b ON p.proj_id=b.proj_id WHERE e.city = 'Bangalore' AND p.budget_tier = 4 AND e.salary BETWEEN 98001 AND 158001,100,18087,15.95,2731.59,6.285
+305,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Pune' AND p.budget_tier = 3,4167710,13120852,4.72,582.18,4.356
+269,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Delhi' AND p.budget_tier = 5,129775,347709,54.57,1200.92,3.393
+70,Category D: 3-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id WHERE e.city = 'Mumbai' AND p.budget_tier = 2 AND a.hours_per_week BETWEEN 24 AND 44,1902725,659613945,15.67,4694.47,8.628
+456,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Hyderabad' AND p.budget_tier = 2,4167710,6000728,24.47,453.03,3.072
+466,Category E: Multi-Table Complex Join (4+ Tables),SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id=d.dept_id JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id JOIN budgets b ON p.proj_id=b.proj_id WHERE e.city = 'Delhi' AND p.budget_tier = 4 AND e.salary BETWEEN 89984 AND 149984,100,32412,10.83,1998.01,4.48
+155,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Pune' AND p.budget_tier = 3,4167710,11391330,4.72,764.17,5.311
+83,Category A: Single Independent,SELECT COUNT(*) FROM projects WHERE priority = 'Critical',5000,19577,5000.0,5.0,0.017
+478,Category E: Multi-Table Complex Join (4+ Tables),SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id=d.dept_id JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id JOIN budgets b ON p.proj_id=b.proj_id WHERE e.city = 'Bangalore' AND p.budget_tier = 4 AND e.salary BETWEEN 61382 AND 121382,100,8896,15.59,1996.89,3.833
+173,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Mumbai' AND p.budget_tier = 5,137536,166399,65.09,1244.54,3.342
+322,Category A: Single Independent,SELECT COUNT(*) FROM assignments WHERE hours_per_week BETWEEN 13 AND 35,5000,21903,5000.0,5.0,1.023
+91,Category A: Single Independent,SELECT COUNT(*) FROM assignments WHERE hours_per_week BETWEEN 9 AND 33,5000,6773,5000.0,5.0,1.269
+181,Category A: Single Independent,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 36168 AND 98731,5000,12746,1604.0,5.0,0.741
+415,Category B: Single Correlated,SELECT COUNT(*) FROM employees WHERE city = 'Delhi' AND salary BETWEEN 113449 AND 163449,923,3166,230.57,5.0,3.106
+313,Category A: Single Independent,SELECT COUNT(*) FROM assignments WHERE hours_per_week BETWEEN 17 AND 35,5000,6843,5000.0,5.0,0.947
+279,Category E: Multi-Table Complex Join (4+ Tables),SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id=d.dept_id JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id JOIN budgets b ON p.proj_id=b.proj_id WHERE e.city = 'Mumbai' AND p.budget_tier = 4 AND e.salary BETWEEN 117134 AND 177134,100,4404,12.34,2771.78,6.592
+382,Category E: Multi-Table Complex Join (4+ Tables),SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id=d.dept_id JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id JOIN budgets b ON p.proj_id=b.proj_id WHERE e.city = 'Mumbai' AND p.budget_tier = 4 AND e.salary BETWEEN 104965 AND 164965,100,17991,12.39,2350.98,7.114
+473,Category A: Single Independent,SELECT COUNT(*) FROM locations WHERE office_tier = 1,5000,20834,5000.0,5.0,0.371
+363,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Bangalore' AND p.budget_tier = 2,1134995,5395501,41.92,1122.23,3.636
+325,Category A: Single Independent,SELECT COUNT(*) FROM locations WHERE office_tier = 2,5000,8448,5000.0,5.0,0.179
+432,Category C: 2-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id WHERE e.city = 'Delhi' AND p.budget_tier = 1,773856,2830070,41.68,1090.86,3.937
+348,Category D: 3-Table Join,SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id=p.dept_id JOIN assignments a ON e.emp_id=a.emp_id WHERE e.city = 'Hyderabad' AND p.budget_tier = 5 AND a.hours_per_week BETWEEN 17 AND 37,2501834,809303342,22.58,2399.39,3.966
+87,Category B: Single Correlated,SELECT COUNT(*) FROM employees WHERE city = 'Delhi' AND salary BETWEEN 55237 AND 105237,923,3613,237.58,5.0,4.833
+76,Category B: Single Correlated,SELECT COUNT(*) FROM employees WHERE city = 'Delhi' AND salary BETWEEN 105766 AND 155766,923,1204,235.92,5.0,5.914
+439,Category A: Single Independent,SELECT COUNT(*) FROM locations WHERE office_tier = 2,5000,10880,5000.0,5.0,0.144
+16,Category A: Single Independent,SELECT COUNT(*) FROM locations WHERE office_tier = 1,5000,24262,5000.0,5.0,0.416

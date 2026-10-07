@@ -10,7 +10,6 @@ def gen_synthetic(n=500):
     X = []
     y = []
     for i in range(n):
-        # randomize number of tables, predicates, cols
         t = np.random.randint(1, 4)
         p = np.random.randint(0, 5)
         c = np.random.randint(1, 6)

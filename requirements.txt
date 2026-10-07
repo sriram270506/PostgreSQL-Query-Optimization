@@ -3,3 +3,5 @@ pandas>=1.5
 numpy>=1.24
 joblib
 pytest
+psycopg2-binary
+Faker

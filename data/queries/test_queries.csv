@@ -1,0 +1,1327 @@
+query_id,sql
+1,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 127323 AND 143321;
+2,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 165366 AND 181364;"
+3,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 2 AND e.salary BETWEEN 57337 AND 73334;"
+4,SELECT COUNT(*) FROM projects WHERE budget_tier = 3;
+5,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 161836 AND 177834;"
+6,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+7,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 127510 AND 143508;"
+8,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 194204 AND 199983;"
+9,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 94775 AND 110773;"
+10,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+11,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 141691 AND 157689;"
+12,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 189501 AND 199983;"
+13,SELECT COUNT(*) FROM employees WHERE dept_id = 1;
+14,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+15,SELECT COUNT(*) FROM employees WHERE dept_id = 2;
+16,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 1 AND e.salary BETWEEN 56560 AND 72558;"
+17,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+18,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 190288 AND 199983;"
+19,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 150509 AND 166506;"
+20,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+21,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+22,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 51150 AND 67147;"
+23,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+24,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 88446 AND 104443;"
+25,SELECT COUNT(*) FROM employees WHERE dept_id = 3;
+26,SELECT COUNT(*) FROM employees WHERE age BETWEEN 23 AND 28;
+27,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 163613 AND 179611;"
+28,SELECT COUNT(*) FROM employees WHERE dept_id = 1;
+29,SELECT COUNT(*) FROM employees WHERE dept_id = 3;
+30,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 153660 AND 169657;"
+31,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Berlin' AND p.budget_tier = 1 AND e.salary BETWEEN 116667 AND 132665;"
+32,SELECT COUNT(*) FROM departments WHERE city = 'Berlin';
+33,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+34,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 49526 AND 65524;"
+35,SELECT COUNT(*) FROM employees WHERE dept_id = 3;
+36,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+37,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 52330 AND 68327;"
+38,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+39,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 1 AND e.salary BETWEEN 176953 AND 192950;"
+40,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Berlin' AND p.budget_tier = 1 AND e.salary BETWEEN 198426 AND 199983;"
+41,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 148792 AND 164789;"
+42,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+43,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 1 AND e.salary BETWEEN 111738 AND 127735;"
+44,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 144011 AND 160008;"
+45,SELECT COUNT(*) FROM employees WHERE age BETWEEN 44 AND 49;
+46,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+47,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 161437 AND 177435;
+48,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 44206 AND 60204;"
+49,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 43709 AND 59707;"
+50,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 92205 AND 108203;"
+51,SELECT COUNT(*) FROM departments WHERE city = 'Berlin';
+52,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 119192 AND 135190;"
+53,SELECT COUNT(*) FROM employees WHERE age BETWEEN 22 AND 27;
+54,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 115902 AND 131899;
+55,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+56,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 191368 AND 199983;"
+57,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 56483 AND 72481;"
+58,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+59,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 177208 AND 193205;"
+60,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+61,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 1 AND e.salary BETWEEN 125288 AND 141286;"
+62,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+63,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Berlin' AND p.budget_tier = 2 AND e.salary BETWEEN 172505 AND 188503;"
+64,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 88104 AND 104102;"
+65,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 1 AND e.salary BETWEEN 174966 AND 190963;"
+66,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+67,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 163991 AND 179988;"
+68,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+69,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 77295 AND 93292;"
+70,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 61110 AND 77108;
+71,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 179313 AND 195310;"
+72,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 1 AND e.salary BETWEEN 194222 AND 199983;"
+73,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 45266 AND 61264;"
+74,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 156938 AND 172936;"
+75,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 186126 AND 199983;"
+76,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 177761 AND 193759;"
+77,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+78,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+79,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 194388 AND 199983;"
+80,SELECT COUNT(*) FROM employees WHERE dept_id = 1;
+81,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 161686 AND 177683;
+82,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 1 AND e.salary BETWEEN 111253 AND 127250;"
+83,SELECT COUNT(*) FROM departments WHERE city = 'Berlin';
+84,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 90354 AND 106352;"
+85,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 91666 AND 107664;"
+86,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 155846 AND 171844;"
+87,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 159442 AND 175440;
+88,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+89,SELECT COUNT(*) FROM employees WHERE age BETWEEN 34 AND 39;
+90,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 144648 AND 160646;"
+91,SELECT COUNT(*) FROM employees WHERE dept_id = 3;
+92,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+93,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 99341 AND 115338;
+94,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+95,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 178758 AND 194755;"
+96,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+97,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+98,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 116619 AND 132617;"
+99,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 195006 AND 199983;"
+100,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+101,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 70328 AND 86326;"
+102,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+103,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 179424 AND 195421;"
+104,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+105,SELECT COUNT(*) FROM employees WHERE dept_id = 4;
+106,SELECT COUNT(*) FROM projects WHERE budget_tier = 3;
+107,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 3 AND e.salary BETWEEN 164755 AND 180753;"
+108,SELECT COUNT(*) FROM employees WHERE age BETWEEN 47 AND 52;
+109,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 113020 AND 129017;"
+110,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 2 AND e.salary BETWEEN 125835 AND 141832;"
+111,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+112,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+113,SELECT COUNT(*) FROM employees WHERE dept_id = 3;
+114,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 2 AND e.salary BETWEEN 43024 AND 59022;"
+115,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 167930 AND 183927;"
+116,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 87637 AND 103634;"
+117,SELECT COUNT(*) FROM employees WHERE dept_id = 4;
+118,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+119,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 186551 AND 199983;"
+120,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 194894 AND 199983;"
+121,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 70315 AND 86313;"
+122,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 114659 AND 130656;"
+123,SELECT COUNT(*) FROM projects WHERE budget_tier = 3;
+124,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 40181 AND 56178;"
+125,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+126,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 136533 AND 152530;"
+127,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 1 AND e.salary BETWEEN 138004 AND 154001;"
+128,SELECT COUNT(*) FROM projects WHERE budget_tier = 3;
+129,SELECT COUNT(*) FROM departments WHERE city = 'Berlin';
+130,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 80367 AND 96365;"
+131,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+132,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 130257 AND 146254;"
+133,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+134,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 76433 AND 92431;
+135,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+136,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 65990 AND 81988;"
+137,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+138,SELECT COUNT(*) FROM employees WHERE age BETWEEN 24 AND 29;
+139,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 3 AND e.salary BETWEEN 92499 AND 108497;"
+140,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 135286 AND 151283;"
+141,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 110028 AND 126025;"
+142,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 197517 AND 199983;"
+143,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+144,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+145,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 3 AND e.salary BETWEEN 64089 AND 80087;"
+146,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 1 AND e.salary BETWEEN 115281 AND 131279;"
+147,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 149422 AND 165419;
+148,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+149,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+150,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+151,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+152,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+153,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+154,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 104044 AND 120042;"
+155,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+156,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 195994 AND 199983;"
+157,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 155582 AND 171580;"
+158,SELECT COUNT(*) FROM projects WHERE budget_tier = 3;
+159,SELECT COUNT(*) FROM employees WHERE age BETWEEN 32 AND 37;
+160,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+161,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 151642 AND 167639;"
+162,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+163,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 2 AND e.salary BETWEEN 178204 AND 194202;"
+164,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+165,SELECT COUNT(*) FROM employees WHERE dept_id = 4;
+166,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 165367 AND 181364;"
+167,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 46773 AND 62771;"
+168,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 117870 AND 133868;"
+169,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+170,SELECT COUNT(*) FROM employees WHERE age BETWEEN 35 AND 40;
+171,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+172,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 79341 AND 95338;"
+173,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+174,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Berlin' AND p.budget_tier = 3 AND e.salary BETWEEN 197870 AND 199983;"
+175,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 63013 AND 79010;"
+176,SELECT COUNT(*) FROM projects WHERE budget_tier = 3;
+177,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 120990 AND 136988;"
+178,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 139596 AND 155594;"
+179,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 152839 AND 168836;"
+180,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+181,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 130493 AND 146490;"
+182,SELECT COUNT(*) FROM departments WHERE city = 'Berlin';
+183,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+184,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 41774 AND 57772;"
+185,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+186,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 92541 AND 108538;"
+187,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 123814 AND 139811;"
+188,SELECT COUNT(*) FROM employees WHERE dept_id = 1;
+189,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Berlin' AND p.budget_tier = 1 AND e.salary BETWEEN 54255 AND 70252;"
+190,SELECT COUNT(*) FROM departments WHERE city = 'Berlin';
+191,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 2 AND e.salary BETWEEN 96102 AND 112099;"
+192,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 45639 AND 61636;"
+193,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 52846 AND 68843;"
+194,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 104188 AND 120186;"
+195,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 61380 AND 77377;"
+196,SELECT COUNT(*) FROM projects WHERE budget_tier = 3;
+197,SELECT COUNT(*) FROM employees WHERE dept_id = 2;
+198,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 131487 AND 147485;"
+199,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 150785 AND 166783;"
+200,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 168465 AND 184462;"
+201,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+202,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+203,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+204,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+205,SELECT COUNT(*) FROM projects WHERE budget_tier = 3;
+206,SELECT COUNT(*) FROM employees WHERE age BETWEEN 30 AND 35;
+207,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 2 AND e.salary BETWEEN 47073 AND 63070;"
+208,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 1 AND e.salary BETWEEN 147882 AND 163879;"
+209,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 192611 AND 199983;"
+210,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+211,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 2 AND e.salary BETWEEN 59718 AND 75715;"
+212,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+213,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+214,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+215,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 183927 AND 199924;"
+216,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 135966 AND 151963;"
+217,SELECT COUNT(*) FROM employees WHERE age BETWEEN 56 AND 61;
+218,SELECT COUNT(*) FROM employees WHERE dept_id = 4;
+219,SELECT COUNT(*) FROM employees WHERE age BETWEEN 40 AND 45;
+220,SELECT COUNT(*) FROM employees WHERE age BETWEEN 23 AND 28;
+221,SELECT COUNT(*) FROM employees WHERE dept_id = 1;
+222,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 153686 AND 169683;"
+223,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 1 AND e.salary BETWEEN 179956 AND 195954;"
+224,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 154401 AND 170399;"
+225,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+226,SELECT COUNT(*) FROM projects WHERE budget_tier = 3;
+227,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 168600 AND 184597;"
+228,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 1 AND e.salary BETWEEN 94391 AND 110388;"
+229,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+230,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 170573 AND 186571;"
+231,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 53073 AND 69071;"
+232,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 183745 AND 199742;
+233,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 128653 AND 144650;"
+234,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 171090 AND 187087;
+235,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Berlin' AND p.budget_tier = 2 AND e.salary BETWEEN 112808 AND 128805;"
+236,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+237,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 143505 AND 159502;"
+238,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 125183 AND 141181;"
+239,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+240,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 157000 AND 172998;"
+241,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Berlin' AND p.budget_tier = 3 AND e.salary BETWEEN 53293 AND 69290;"
+242,SELECT COUNT(*) FROM employees WHERE age BETWEEN 34 AND 39;
+243,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 80330 AND 96328;"
+244,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+245,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 65845 AND 81842;"
+246,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 1 AND e.salary BETWEEN 180122 AND 196120;"
+247,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+248,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 75526 AND 91523;"
+249,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+250,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 196145 AND 199983;"
+251,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+252,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+253,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+254,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+255,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+256,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 94100 AND 110097;"
+257,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 69756 AND 85754;"
+258,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 166843 AND 182840;"
+259,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 145762 AND 161759;"
+260,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 120794 AND 136791;"
+261,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 129855 AND 145853;"
+262,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+263,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 155267 AND 171264;"
+264,SELECT COUNT(*) FROM employees WHERE age BETWEEN 35 AND 40;
+265,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 2 AND e.salary BETWEEN 93531 AND 109529;"
+266,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+267,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+268,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 127630 AND 143628;
+269,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 120026 AND 136023;"
+270,SELECT COUNT(*) FROM employees WHERE age BETWEEN 29 AND 34;
+271,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 149373 AND 165371;"
+272,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 1 AND e.salary BETWEEN 51969 AND 67966;"
+273,SELECT COUNT(*) FROM employees WHERE dept_id = 2;
+274,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 45191 AND 61189;
+275,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 1 AND e.salary BETWEEN 81889 AND 97887;"
+276,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 114853 AND 130850;"
+277,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+278,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 3 AND e.salary BETWEEN 179350 AND 195348;"
+279,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 156269 AND 172266;"
+280,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 158873 AND 174871;"
+281,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+282,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 108848 AND 124846;
+283,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+284,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+285,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 95415 AND 111412;"
+286,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 99709 AND 115706;"
+287,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 197969 AND 199983;"
+288,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 46803 AND 62801;
+289,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+290,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 179117 AND 195114;"
+291,SELECT COUNT(*) FROM projects WHERE budget_tier = 3;
+292,SELECT COUNT(*) FROM projects WHERE budget_tier = 3;
+293,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 133278 AND 149276;"
+294,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 3 AND e.salary BETWEEN 110822 AND 126820;"
+295,SELECT COUNT(*) FROM employees WHERE age BETWEEN 41 AND 46;
+296,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 137886 AND 153884;"
+297,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+298,SELECT COUNT(*) FROM projects WHERE budget_tier = 3;
+299,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 136470 AND 152468;"
+300,SELECT COUNT(*) FROM employees WHERE age BETWEEN 46 AND 51;
+301,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 145108 AND 161105;"
+302,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 198697 AND 199983;"
+303,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 85964 AND 101962;"
+304,SELECT COUNT(*) FROM employees WHERE age BETWEEN 32 AND 37;
+305,SELECT COUNT(*) FROM employees WHERE age BETWEEN 55 AND 60;
+306,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Berlin' AND p.budget_tier = 1 AND e.salary BETWEEN 140391 AND 156389;"
+307,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 141518 AND 157516;"
+308,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 157217 AND 173214;"
+309,SELECT COUNT(*) FROM employees WHERE dept_id = 2;
+310,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 61132 AND 77129;"
+311,SELECT COUNT(*) FROM employees WHERE age BETWEEN 56 AND 61;
+312,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 1 AND e.salary BETWEEN 105514 AND 121512;"
+313,SELECT COUNT(*) FROM departments WHERE city = 'Berlin';
+314,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+315,SELECT COUNT(*) FROM employees WHERE age BETWEEN 35 AND 40;
+316,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 99997 AND 115994;
+317,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 123105 AND 139103;"
+318,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 1 AND e.salary BETWEEN 106777 AND 122775;"
+319,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 51381 AND 67378;"
+320,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+321,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 110671 AND 126669;
+322,SELECT COUNT(*) FROM employees WHERE age BETWEEN 59 AND 64;
+323,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 179928 AND 195925;
+324,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 3 AND e.salary BETWEEN 111698 AND 127695;"
+325,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 123377 AND 139375;"
+326,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 1 AND e.salary BETWEEN 97857 AND 113855;"
+327,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 3 AND e.salary BETWEEN 135577 AND 151575;"
+328,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 66602 AND 82600;
+329,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 103295 AND 119292;"
+330,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 1 AND e.salary BETWEEN 195201 AND 199983;"
+331,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+332,SELECT COUNT(*) FROM employees WHERE dept_id = 4;
+333,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 82011 AND 98008;
+334,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+335,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 145457 AND 161454;"
+336,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 92445 AND 108443;"
+337,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+338,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 2 AND e.salary BETWEEN 164206 AND 180204;"
+339,SELECT COUNT(*) FROM departments WHERE city = 'Berlin';
+340,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+341,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+342,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 1 AND e.salary BETWEEN 61078 AND 77075;"
+343,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 2 AND e.salary BETWEEN 195277 AND 199983;"
+344,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+345,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+346,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 113030 AND 129027;"
+347,SELECT COUNT(*) FROM employees WHERE dept_id = 1;
+348,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 78243 AND 94240;"
+349,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 1 AND e.salary BETWEEN 52140 AND 68137;"
+350,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+351,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+352,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+353,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 2 AND e.salary BETWEEN 67704 AND 83701;"
+354,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 2 AND e.salary BETWEEN 124140 AND 140138;"
+355,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 94103 AND 110101;"
+356,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 173003 AND 189000;"
+357,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 1 AND e.salary BETWEEN 109627 AND 125624;"
+358,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Berlin' AND p.budget_tier = 3 AND e.salary BETWEEN 80534 AND 96532;"
+359,SELECT COUNT(*) FROM departments WHERE city = 'Berlin';
+360,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 139459 AND 155457;"
+361,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 153460 AND 169458;"
+362,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 67243 AND 83240;"
+363,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 67345 AND 83342;"
+364,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 46338 AND 62336;"
+365,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 1 AND e.salary BETWEEN 157905 AND 173902;"
+366,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+367,SELECT COUNT(*) FROM employees WHERE age BETWEEN 24 AND 29;
+368,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 126277 AND 142275;"
+369,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 165665 AND 181662;"
+370,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+371,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 153296 AND 169294;"
+372,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 111783 AND 127781;"
+373,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 178738 AND 194735;"
+374,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+375,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 130209 AND 146207;
+376,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+377,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+378,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 3 AND e.salary BETWEEN 127304 AND 143302;"
+379,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 45774 AND 61771;"
+380,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+381,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 197876 AND 199983;
+382,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 2 AND e.salary BETWEEN 59567 AND 75565;"
+383,SELECT COUNT(*) FROM employees WHERE age BETWEEN 45 AND 50;
+384,SELECT COUNT(*) FROM employees WHERE dept_id = 1;
+385,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+386,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 3 AND e.salary BETWEEN 190220 AND 199983;"
+387,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+388,SELECT COUNT(*) FROM employees WHERE dept_id = 2;
+389,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 46730 AND 62727;"
+390,SELECT COUNT(*) FROM departments WHERE city = 'Berlin';
+391,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+392,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 59479 AND 75477;"
+393,SELECT COUNT(*) FROM projects WHERE budget_tier = 3;
+394,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Berlin' AND p.budget_tier = 1 AND e.salary BETWEEN 112782 AND 128779;"
+395,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 189749 AND 199983;"
+396,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+397,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+398,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 2 AND e.salary BETWEEN 90933 AND 106931;"
+399,SELECT COUNT(*) FROM employees WHERE age BETWEEN 39 AND 44;
+400,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 134361 AND 150359;"
+401,SELECT COUNT(*) FROM employees WHERE dept_id = 3;
+402,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 150546 AND 166544;"
+403,SELECT COUNT(*) FROM employees WHERE dept_id = 1;
+404,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 104260 AND 120258;"
+405,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+406,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 117773 AND 133770;"
+407,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 2 AND e.salary BETWEEN 150229 AND 166227;"
+408,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 42926 AND 58924;"
+409,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 1 AND e.salary BETWEEN 92176 AND 108174;"
+410,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Berlin' AND p.budget_tier = 3 AND e.salary BETWEEN 195792 AND 199983;"
+411,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+412,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 133449 AND 149447;"
+413,SELECT COUNT(*) FROM employees WHERE age BETWEEN 23 AND 28;
+414,SELECT COUNT(*) FROM employees WHERE dept_id = 1;
+415,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+416,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 123460 AND 139457;
+417,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+418,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 119203 AND 135201;"
+419,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 147256 AND 163254;"
+420,SELECT COUNT(*) FROM employees WHERE age BETWEEN 38 AND 43;
+421,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 45056 AND 61054;"
+422,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 1 AND e.salary BETWEEN 89701 AND 105699;"
+423,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+424,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 153172 AND 169170;"
+425,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Berlin' AND p.budget_tier = 1 AND e.salary BETWEEN 72859 AND 88856;"
+426,SELECT COUNT(*) FROM departments WHERE city = 'Berlin';
+427,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 148291 AND 164289;
+428,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+429,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 2 AND e.salary BETWEEN 195279 AND 199983;"
+430,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 55386 AND 71383;"
+431,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 148206 AND 164203;"
+432,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 111460 AND 127457;"
+433,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+434,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 179337 AND 195335;"
+435,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+436,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 69029 AND 85026;
+437,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+438,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+439,SELECT COUNT(*) FROM departments WHERE city = 'Berlin';
+440,SELECT COUNT(*) FROM projects WHERE budget_tier = 3;
+441,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 151281 AND 167279;"
+442,SELECT COUNT(*) FROM departments WHERE city = 'Berlin';
+443,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 174543 AND 190541;"
+444,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 191419 AND 199983;"
+445,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 149834 AND 165832;"
+446,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+447,SELECT COUNT(*) FROM employees WHERE dept_id = 3;
+448,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+449,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+450,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+451,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+452,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 1 AND e.salary BETWEEN 120603 AND 136600;"
+453,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 139571 AND 155569;"
+454,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 179529 AND 195526;"
+455,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 131974 AND 147972;"
+456,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Seattle' AND p.budget_tier = 2 AND e.salary BETWEEN 45114 AND 61112;"
+457,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 189353 AND 199983;"
+458,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 150793 AND 166791;"
+459,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 148863 AND 164861;"
+460,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+461,SELECT COUNT(*) FROM employees WHERE salary BETWEEN 74993 AND 90990;
+462,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+463,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+464,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 145856 AND 161854;"
+465,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 103731 AND 119728;"
+466,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 144609 AND 160607;"
+467,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 57244 AND 73242;"
+468,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+469,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+470,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 145624 AND 161622;"
+471,SELECT COUNT(*) FROM departments WHERE city = 'Berlin';
+472,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Bangalore' AND e.salary BETWEEN 199879 AND 199983;"
+473,SELECT COUNT(*) FROM employees WHERE dept_id = 2;
+474,SELECT COUNT(*) FROM employees WHERE dept_id = 1;
+475,SELECT COUNT(*) FROM employees WHERE dept_id = 2;
+476,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 2 AND e.salary BETWEEN 48143 AND 64140;"
+477,SELECT COUNT(*) FROM departments WHERE city = 'Austin';
+478,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 196291 AND 199983;"
+479,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+480,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 105817 AND 121814;"
+481,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+482,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Berlin' AND e.salary BETWEEN 179928 AND 195926;"
+483,SELECT COUNT(*) FROM employees WHERE dept_id = 4;
+484,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 165782 AND 181780;"
+485,SELECT COUNT(*) FROM departments WHERE city = 'Bangalore';
+486,SELECT COUNT(*) FROM employees WHERE dept_id = 1;
+487,SELECT COUNT(*) FROM departments WHERE city = 'Seattle';
+488,SELECT COUNT(*) FROM projects WHERE budget_tier = 3;
+489,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 131449 AND 147446;"
+490,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 2 AND e.salary BETWEEN 158239 AND 174236;"
+491,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 2 AND e.salary BETWEEN 181096 AND 197094;"
+492,SELECT COUNT(*) FROM employees WHERE age BETWEEN 53 AND 58;
+493,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Berlin' AND p.budget_tier = 2 AND e.salary BETWEEN 92675 AND 108672;"
+494,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+495,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Seattle' AND e.salary BETWEEN 147431 AND 163429;"
+496,SELECT COUNT(*) FROM projects WHERE budget_tier = 2;
+497,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.city = 'Austin' AND e.salary BETWEEN 169561 AND 185559;"
+498,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Austin' AND p.budget_tier = 3 AND e.salary BETWEEN 162108 AND 178105;"
+499,SELECT COUNT(*) FROM projects WHERE budget_tier = 1;
+500,"SELECT COUNT(*)
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id
+JOIN projects p ON p.emp_id = e.emp_id
+WHERE d.city = 'Bangalore' AND p.budget_tier = 3 AND e.salary BETWEEN 168100 AND 184098;"
