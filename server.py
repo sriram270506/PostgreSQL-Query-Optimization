@@ -1,457 +1,255 @@
+"""FastAPI backend: embedded SQL engine + live cardinality estimation shoot-out.
+
+    python server.py           # http://127.0.0.1:8000  (frontend dev server proxies /api)
+
+No PostgreSQL needed: queries execute on the in-process engine (src/engine) and the
+"PostgreSQL" estimate comes from its planner emulation. If PG_DSN is set and psycopg2
+is installed, /api/run additionally reports a live EXPLAIN estimate from a real server.
 """
-FastAPI Backend: PostgreSQL Cardinality Estimation Research Platform
-Serves 6-table synthetic dataset, BN models, FactorJoin, ML Fusion, and benchmark data.
-"""
-import os
-import re
-import time
 import json
 import math
-import joblib
+import os
+import time
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 import pandas as pd
-from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, HTTPException, Query as QueryParam
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
-from src.estimator.factorjoin import FactorJoin
+from src.engine import SQLError, optimizer
+from src.engine.executor import JOIN_EDGES
+from src.estimator.service import LABELS, Estimators, qerror
+from src.estimator import viz
 
-app = FastAPI(title="PostgreSQL Cardinality Estimation Research Platform")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-CSV_DIR = "data/out"
 MODELS_DIR = "models"
-QUERIES_CSV = "data/queries/test_queries_with_counts.csv"
+WORKLOAD = "data/workload/workload.csv"
+MAX_PLAN_RELS = 6
 
-ALL_TABLES = ["departments", "employees", "projects", "assignments", "locations", "budgets"]
+app = FastAPI(title="Cardinality Lab")
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173",
+                                                  "http://localhost:5174", "http://127.0.0.1:5174"],
+                   allow_methods=["GET", "POST"], allow_headers=["*"])
 
-# Globals
-factor_join: Optional[FactorJoin] = None
-fusion_payload: Optional[Dict] = None
-bn_models: Dict[str, Any] = {}
-
-
-def load_artifacts():
-    global factor_join, fusion_payload, bn_models
-    try:
-        factor_join = FactorJoin(csv_dir=CSV_DIR)
-        print("FactorJoin initialized.")
-    except Exception as e:
-        print(f"Warning: FactorJoin init failed: {e}")
-
-    fusion_path = os.path.join(MODELS_DIR, "fusion_model.joblib")
-    if os.path.exists(fusion_path):
-        try:
-            fusion_payload = joblib.load(fusion_path)
-            print("Fusion model loaded.")
-        except Exception as e:
-            print(f"Warning: Fusion model load failed: {e}")
-
-    for tbl in ALL_TABLES:
-        bn_path = os.path.join(MODELS_DIR, f"bn_{tbl}.joblib")
-        if os.path.exists(bn_path):
-            try:
-                bn_models[tbl] = joblib.load(bn_path)
-                print(f"Loaded BN for {tbl}")
-            except Exception as e:
-                print(f"Warning: BN load failed for {tbl}: {e}")
+S = Estimators(models_dir=MODELS_DIR)
+_workload = pd.read_csv(WORKLOAD) if os.path.exists(WORKLOAD) else None
+_viz_cache: Dict[str, dict] = {}
 
 
-load_artifacts()
+def _json_file(name: str) -> dict:
+    path = os.path.join(MODELS_DIR, name)
+    if not os.path.exists(path):
+        raise HTTPException(404, f"{name} not found - run the training/benchmark scripts first")
+    with open(path) as f:
+        return json.load(f)
 
 
-def to_py(v):
-    """Convert numpy types to Python native for JSON serialization."""
+def _py(v: Any) -> Any:
     if isinstance(v, (np.integer,)):
         return int(v)
-    if isinstance(v, (np.floating,)):
-        return None if math.isnan(float(v)) else float(v)
-    if isinstance(v, dict):
-        return {str(k): to_py(val) for k, val in v.items()}
-    if isinstance(v, list):
-        return [to_py(x) for x in v]
+    if isinstance(v, (np.floating, float)):
+        return None if math.isnan(v) else float(v)
     return v
 
 
-class EstimateRequest(BaseModel):
-    sql: str
+# ── schema / data ───────────────────────────────────────────────────────────
 
-
-# ─────────────────────────────────────────────
-# HEALTH
-# ─────────────────────────────────────────────
 @app.get("/api/health")
 def health():
-    stats = fusion_payload.get("stats", {}) if fusion_payload else {}
-    return {
-        "status": "online",
-        "factor_join": factor_join is not None,
-        "fusion_model": fusion_payload is not None,
-        "bn_tables": list(bn_models.keys()),
-        "fusion_stats": to_py(stats),
-    }
+    return {"status": "ok", "estimators": S.available(),
+            "tables": {t: tb.n for t, tb in S.engine.catalog.tables.items()},
+            "workload": 0 if _workload is None else len(_workload),
+            "postgres_live": bool(os.environ.get("PG_DSN"))}
 
 
-# ─────────────────────────────────────────────
-# TABLE LISTING
-# ─────────────────────────────────────────────
-@app.get("/api/tables")
-def list_tables():
-    result = []
-    for tbl in ALL_TABLES:
-        fpath = os.path.join(CSV_DIR, f"{tbl}.csv")
-        if os.path.exists(fpath):
-            df = pd.read_csv(fpath)
-            result.append({
-                "name": tbl,
-                "row_count": len(df),
-                "columns": [{"name": c, "type": str(df[c].dtype)} for c in df.columns],
-                "head": df.head(5).fillna("").to_dict(orient="records"),
-            })
-    return result
+@app.get("/api/schema")
+def schema():
+    out = []
+    for t, tb in S.engine.catalog.tables.items():
+        cols = []
+        for c in tb.cols:
+            v = tb.df[c]
+            info = {"name": c, "type": "number" if tb.numeric[c] else "text", "distinct": int(v.nunique())}
+            if tb.numeric[c]:
+                info.update(min=_py(v.min()), max=_py(v.max()))
+            elif info["distinct"] <= 12:
+                info["values"] = sorted(map(str, v.unique()))
+            cols.append(info)
+        out.append({"name": t, "rows": tb.n, "columns": cols})
+    return {"tables": out, "joins": [{"left": f"{a}.{b}", "right": f"{c}.{d}"} for a, b, c, d in JOIN_EDGES]}
 
 
-# ─────────────────────────────────────────────
-# TABLE DATA (paginated)
-# ─────────────────────────────────────────────
-@app.get("/api/tables/{table_name}")
-def get_table(table_name: str, page: int = 1, page_size: int = 25, search: Optional[str] = None):
-    fpath = os.path.join(CSV_DIR, f"{table_name}.csv")
-    if not os.path.exists(fpath):
-        raise HTTPException(status_code=404, detail=f"Table '{table_name}' not found")
-
-    df = pd.read_csv(fpath)
-    if search:
-        mask = df.astype(str).apply(lambda row: row.str.lower().str.contains(search.lower()).any(), axis=1)
-        df = df[mask]
-
-    total_rows = len(df)
-    start = (page - 1) * page_size
-    page_df = df.iloc[start: start + page_size]
-
-    stats = {}
-    for col in df.columns:
-        if pd.api.types.is_numeric_dtype(df[col]):
-            stats[col] = {
-                "min": to_py(df[col].min()),
-                "max": to_py(df[col].max()),
-                "mean": round(to_py(df[col].mean()), 2),
-                "std": round(to_py(df[col].std()), 2),
-                "unique": int(df[col].nunique()),
-                "type": "numeric",
-            }
-        else:
-            vc = df[col].value_counts().head(5).to_dict()
-            stats[col] = {
-                "unique": int(df[col].nunique()),
-                "top_values": {str(k): int(v) for k, v in vc.items()},
-                "type": "categorical",
-            }
-
-    return {
-        "table_name": table_name,
-        "total_rows": total_rows,
-        "page": page,
-        "page_size": page_size,
-        "total_pages": math.ceil(total_rows / page_size),
-        "columns": [{"name": c, "type": str(df[c].dtype)} for c in df.columns],
-        "rows": page_df.fillna("").to_dict(orient="records"),
-        "stats": stats,
-    }
+@app.get("/api/tables/{name}")
+def table_rows(name: str, page: int = 1, page_size: int = 25):
+    tb = S.engine.catalog.tables.get(name)
+    if tb is None:
+        raise HTTPException(404, f"unknown table {name}")
+    page_size = max(1, min(page_size, 200))
+    start = (max(page, 1) - 1) * page_size
+    chunk = tb.df.iloc[start:start + page_size]
+    return {"columns": list(tb.df.columns), "rows": chunk.astype(object).values.tolist(),
+            "total": tb.n, "page": page, "page_size": page_size}
 
 
-# ─────────────────────────────────────────────
-# BAYESIAN NETWORKS
-# ─────────────────────────────────────────────
-@app.get("/api/bayesian-networks")
-def get_all_bns():
-    result = {}
-    for tbl, model in bn_models.items():
-        cols = model.get("cols", [])
-        edges = model.get("edges", [])
-        disc = model.get("discretization", {})
-        cpts_raw = model.get("cpts", {})
-
-        nodes = []
-        for col in cols:
-            d = disc.get(col, {})
-            bins = d.get("bins")
-            nodes.append({
-                "id": col,
-                "label": col.replace("_", " ").title(),
-                "bins_count": len(bins) - 1 if bins else None,
-            })
-
-        # Compute mutual information strengths from CPT shape
-        edge_list = []
-        for par, child in edges:
-            edge_list.append({"source": par, "target": child, "label": f"{par} → {child}"})
-
-        # CPT summary
-        cpt_summary = {}
-        for col, info in cpts_raw.items():
-            if "_prior" in info:
-                cpt_summary[col] = {
-                    "type": "prior",
-                    "parent": None,
-                    "states": list(info["_prior"].keys())[:5],
-                    "probs": {k: round(v, 4) for k, v in list(info["_prior"].items())[:5]},
-                }
-            elif "table" in info:
-                par = info.get("parent", "?")
-                # Sample one parent value
-                sample_par = list(info["table"].keys())[0] if info["table"] else None
-                sample_row = info["table"].get(sample_par, {}) if sample_par else {}
-                cpt_summary[col] = {
-                    "type": "conditional",
-                    "parent": par,
-                    "n_parent_states": len(info["table"]),
-                    "sample_parent_val": sample_par,
-                    "sample_probs": {k: round(v, 4) for k, v in list(sample_row.items())[:5]},
-                }
-
-        result[tbl] = {
-            "table_name": tbl,
-            "cols": cols,
-            "nodes": nodes,
-            "edges": edge_list,
-            "cpt_summary": cpt_summary,
-        }
-    return result
+@app.get("/api/bn/{table}")
+def bayes_net(table: str):
+    bn = S.fj.bns.get(table)
+    if bn is None:
+        raise HTTPException(404, f"unknown table {table}")
+    nodes = [{"id": c, "bins": bn.disc[c].labels(), "marginal": np.round(bn.marg[c], 4).tolist()} for c in bn.cols]
+    edges = [{"parent": p, "child": c, "mi": round(mi, 4),
+              "cpt": np.round(bn.cpt(c, p), 4).tolist()} for p, c, mi in bn.edges]
+    return {"table": table, "rows": bn.n, "nodes": nodes, "edges": edges}
 
 
-@app.get("/api/cpts/{table_name}")
-def get_table_cpts(table_name: str):
-    if table_name not in bn_models:
-        raise HTTPException(status_code=404, detail=f"No BN model for table '{table_name}'")
-
-    model = bn_models[table_name]
-    cpts_raw = model.get("cpts", {})
-
-    # Serialize safely
-    cpts_out = {}
-    for col, info in cpts_raw.items():
-        if "_prior" in info:
-            cpts_out[col] = {
-                "type": "prior",
-                "parent": None,
-                "data": {str(k): round(float(v), 5) for k, v in info["_prior"].items()},
-            }
-        elif "table" in info:
-            par = info.get("parent", "?")
-            table_data = {}
-            for pv, row in info["table"].items():
-                table_data[str(pv)] = {str(cv): round(float(p), 5) for cv, p in row.items()}
-            cpts_out[col] = {
-                "type": "conditional",
-                "parent": par,
-                "data": table_data,
-            }
-
-    return {
-        "table_name": table_name,
-        "cols": model.get("cols", []),
-        "edges": model.get("edges", []),
-        "cpts": cpts_out,
-    }
-
-
-# ─────────────────────────────────────────────
-# ESTIMATION (live query)
-# ─────────────────────────────────────────────
-@app.post("/api/estimate")
-def estimate(req: EstimateRequest):
-    sql = req.sql.strip()
-    if not sql:
-        raise HTTPException(status_code=400, detail="SQL required")
-    if factor_join is None:
-        raise HTTPException(status_code=503, detail="FactorJoin not initialized")
-
-    # FactorJoin inference
-    feats = factor_join.extract_features(sql)
-    fj_est = feats.get("factorjoin_est", 0.0)
-    fj_latency = feats.get("latency_ms", 0.0)
-
-    # ML Fusion inference
-    ml_est = None
-    ml_latency = None
-    if fusion_payload:
-        model = fusion_payload["model"]
-        X = np.array([[
-            feats.get("s_e", 1.0),
-            feats.get("s_d", 1.0),
-            feats.get("s_p", 1.0),
-            feats.get("s_a", 1.0),
-            feats.get("s_l", 1.0),
-            feats.get("s_b", 1.0),
-            feats.get("p_dept_given_emp", 1.0),
-            feats.get("p_proj_given_emp", 1.0),
-            fj_est,
-        ]])
-        t0 = time.perf_counter()
-        pred_log = model.predict(X)[0]
-        ml_latency = round((time.perf_counter() - t0) * 1000.0, 4)
-        ml_est = max(0.0, float(np.expm1(pred_log)))
-
-    # Ground truth from workload CSV if available
-    true_count = None
-    if os.path.exists(QUERIES_CSV):
-        df_q = pd.read_csv(QUERIES_CSV)
-        match = df_q[df_q["sql"] == sql]
-        if not match.empty:
-            true_count = int(match.iloc[0]["true_count"])
-
-    # Simulated Postgres latency
-    pg_latency = None
-    if os.path.exists(QUERIES_CSV):
-        df_q = pd.read_csv(QUERIES_CSV)
-        match = df_q[df_q["sql"] == sql]
-        if not match.empty and "postgres_latency_ms" in df_q.columns:
-            pg_latency = float(match.iloc[0]["postgres_latency_ms"])
-
-    def q_err(est, tc):
-        if est is None or tc is None or tc <= 0:
-            return None
-        e, t = max(float(est), 1e-6), max(float(tc), 1e-6)
-        return round(max(e / t, t / e), 3)
-
-    return {
-        "sql": sql,
-        "factorjoin_estimate": round(fj_est, 2),
-        "ml_fusion_estimate": round(ml_est, 2) if ml_est is not None else None,
-        "true_count": true_count,
-        "latency": {
-            "postgres_ms": pg_latency,
-            "factorjoin_ms": round(fj_latency, 4),
-            "ml_fusion_ms": ml_latency,
-        },
-        "q_errors": {
-            "factorjoin": q_err(fj_est, true_count),
-            "ml_fusion": q_err(ml_est, true_count),
-        },
-        "features": {k: round(float(v), 5) if isinstance(v, float) else v for k, v in feats.items() if k != "latency_ms"},
-    }
-
-
-# ─────────────────────────────────────────────
-# QUERY WORKLOAD
-# ─────────────────────────────────────────────
-@app.get("/api/queries")
-def get_queries(category: Optional[str] = None, limit: int = 50, offset: int = 0):
-    if not os.path.exists(QUERIES_CSV):
-        raise HTTPException(status_code=404, detail="Query workload not generated yet")
-
-    df = pd.read_csv(QUERIES_CSV)
+@app.get("/api/workload/sample")
+def workload_sample(category: Optional[str] = None, n: int = 6, seed: Optional[int] = None):
+    if _workload is None:
+        raise HTTPException(404, "workload not generated - run scripts.build_workload")
+    df = _workload[_workload.split == "test"]
     if category:
-        df = df[df["category"].str.contains(category, case=False, na=False)]
-
-    total = len(df)
-    df = df.iloc[offset: offset + limit]
-
-    records = []
-    for _, row in df.iterrows():
-        tc = max(1, int(row.get("true_count", 1)))
-        fj_est = float(row.get("factorjoin_estimate", 0))
-        pg_est = float(row.get("postgres_estimate", 0))
-
-        def qe(est):
-            e, t = max(est, 1e-6), max(tc, 1e-6)
-            return round(max(e / t, t / e), 2)
-
-        records.append({
-            "id": int(row.get("id", 0)),
-            "category": row.get("category", ""),
-            "sql": row.get("sql", ""),
-            "true_count": tc,
-            "postgres_estimate": int(pg_est),
-            "factorjoin_estimate": round(fj_est, 2),
-            "postgres_latency_ms": float(row.get("postgres_latency_ms", 0)),
-            "factorjoin_latency_ms": float(row.get("factorjoin_latency_ms", 0)),
-            "postgres_q_error": qe(pg_est),
-            "factorjoin_q_error": qe(fj_est),
-        })
-
-    return {"total": total, "queries": records}
+        df = df[df.category == category]
+    df = df.sample(n=min(n, len(df)), random_state=seed)
+    return [{"sql": r.sql, "category": r.category, "true_count": int(r.true_count)} for r in df.itertuples()]
 
 
-# ─────────────────────────────────────────────
-# BENCHMARK DASHBOARD
-# ─────────────────────────────────────────────
-@app.get("/api/benchmark")
-def get_benchmark():
-    if not os.path.exists(QUERIES_CSV):
-        raise HTTPException(status_code=404, detail="Query workload not generated yet")
+# ── the shoot-out ───────────────────────────────────────────────────────────
 
-    df = pd.read_csv(QUERIES_CSV)
+class RunRequest(BaseModel):
+    sql: str = Field(..., max_length=5000)
+    row_limit: int = Field(100, ge=1, le=1000)
 
-    stats = fusion_payload.get("stats", {}) if fusion_payload else {}
-    ml_median_q = stats.get("median_q", None)
-    ml_latency = stats.get("ml_latency_ms", None)
-    fj_latency_mean = stats.get("fj_latency_ms", None)
-    pg_latency_mean = stats.get("pg_latency_ms", None)
 
-    # Compute FJ Q-errors from workload
-    def qe(est, tc):
-        e, t = max(float(est), 1e-6), max(float(tc), 1e-6)
-        return max(e / t, t / e)
+def _postgres_live(sql: str) -> Optional[dict]:
+    dsn = os.environ.get("PG_DSN")
+    if not dsn:
+        return None
+    try:
+        import psycopg2
+        with psycopg2.connect(dsn, connect_timeout=3) as conn, conn.cursor() as cur:
+            t0 = time.perf_counter()
+            cur.execute("EXPLAIN (FORMAT JSON) " + sql)  # sql is the engine's normalised SELECT
+            plan = cur.fetchone()[0]
+            ms = (time.perf_counter() - t0) * 1000
+        return {"estimate": float(plan[0]["Plan"]["Plan Rows"]), "latency_ms": ms}
+    except Exception as e:  # live PG is optional; report, never fail the request
+        return {"error": str(e).splitlines()[0]}
 
-    fj_qs, pg_qs = [], []
-    for _, row in df.iterrows():
-        tc = max(1, int(row.get("true_count", 1)))
-        fj_qs.append(qe(row.get("factorjoin_estimate", 1), tc))
-        pg_qs.append(qe(row.get("postgres_estimate", 1), tc))
 
-    # Per-category breakdown
-    cat_breakdown = []
-    for cat, grp in df.groupby("category"):
-        tc_arr = grp["true_count"].values.astype(float)
-        fj_arr = grp["factorjoin_estimate"].values.astype(float)
-        pg_arr = grp["postgres_estimate"].values.astype(float)
-        fj_q_arr = [qe(fj_arr[i], tc_arr[i]) for i in range(len(tc_arr))]
-        pg_q_arr = [qe(pg_arr[i], tc_arr[i]) for i in range(len(tc_arr))]
-        cat_breakdown.append({
-            "category": cat,
-            "count": len(grp),
-            "fj_median_q": round(float(np.median(fj_q_arr)), 2),
-            "pg_median_q": round(float(np.median(pg_q_arr)), 2),
-            "fj_latency_ms": round(float(grp["factorjoin_latency_ms"].mean()), 3) if "factorjoin_latency_ms" in grp else None,
-            "pg_latency_ms": round(float(grp["postgres_latency_ms"].mean()), 2) if "postgres_latency_ms" in grp else None,
-        })
+def _plans(q, names: List[str]) -> Optional[dict]:
+    if len(q.rels) < 3 or len(q.rels) > MAX_PLAN_RELS:
+        return None
+    subsets = optimizer.connected_subsets(q)
+    subq = [q.sub(s) for s in subsets]
+    true = {s: float(S.engine.true_count(sq)) for s, sq in zip(subsets, subq)}
+    opt_cost, opt_plan = optimizer.best_plan(q, true)
+    out = {"optimal_cost": opt_cost, "optimal": optimizer.annotate(opt_plan, true, true), "estimators": {}}
+    for n in names:
+        ests = dict(zip(subsets, S.estimate_many(subq, n)))
+        _, plan = optimizer.best_plan(q, ests)
+        cost = optimizer.plan_true_cost(plan, true)
+        out["estimators"][n] = {"true_cost": cost, "ratio": cost / max(opt_cost, 1.0),
+                                "plan": optimizer.annotate(plan, ests, true)}
+    return out
 
-    def dist(qs):
-        return {
-            "under_2": int(sum(q < 2.0 for q in qs)),
-            "2_to_10": int(sum(2.0 <= q < 10.0 for q in qs)),
-            "10_to_100": int(sum(10.0 <= q < 100.0 for q in qs)),
-            "over_100": int(sum(q >= 100.0 for q in qs)),
-        }
 
+@app.post("/api/run")
+def run(req: RunRequest):
+    try:
+        res = S.engine.run(req.sql, req.row_limit)
+    except SQLError as e:
+        raise HTTPException(400, str(e))
+    q = res["query"]
+    count_q = q.sub(q.rels)
+    names = S.available()
+    ests = []
+    for n in names:
+        est, ms = S.estimate(count_q, n)
+        ests.append({"name": n, "label": LABELS[n], "estimate": est, "latency_ms": ms,
+                     "qerror": float(qerror(est, res["count"])), "under": est < max(res["count"], 1)})
+    live = _postgres_live(count_q.to_sql())
+    if live and "estimate" in live:
+        ests.append({"name": "postgres_live", "label": "PostgreSQL (live server)", "estimate": live["estimate"],
+                     "latency_ms": live["latency_ms"], "qerror": float(qerror(live["estimate"], res["count"])),
+                     "under": live["estimate"] < max(res["count"], 1)})
+    rows = res["rows"]
+    scan = []
+    for a, s in res["scan"].items():
+        scan.append({**s, "alias": a, "factorjoin": S.fj.table_estimate(count_q, a),
+                     "preds": [p.to_sql() for p in q.preds_of(a)]})
     return {
-        "total_queries": len(df),
-        "summary": {
-            "postgres_median_q": round(float(np.median(pg_qs)), 2),
-            "factorjoin_median_q": round(float(np.median(fj_qs)), 2),
-            "ml_fusion_median_q": round(ml_median_q, 3) if ml_median_q else None,
-        },
-        "latency_ms": {
-            "postgres_mean": round(pg_latency_mean, 2) if pg_latency_mean else round(float(df["postgres_latency_ms"].mean()), 2) if "postgres_latency_ms" in df else None,
-            "factorjoin_mean": round(fj_latency_mean, 4) if fj_latency_mean else round(float(df["factorjoin_latency_ms"].mean()), 4) if "factorjoin_latency_ms" in df else None,
-            "ml_fusion_mean": round(ml_latency, 4) if ml_latency else None,
-        },
-        "q_error_distribution": {
-            "postgres": dist(pg_qs),
-            "factorjoin": dist(fj_qs),
-        },
-        "category_breakdown": cat_breakdown,
+        "sql": q.to_sql(), "count": res["count"],
+        "exec_ms": res["count_ms"] + res["fetch_ms"], "count_ms": res["count_ms"], "fetch_ms": res["fetch_ms"],
+        "rows": None if rows is None else {"columns": list(rows.columns),
+                                           "data": rows.astype(object).where(rows.notna(), None).values.tolist(),
+                                           "shown": len(rows), "truncated": len(rows) < res["count"]},
+        "estimators": ests,
+        "best": min(ests, key=lambda e: e["qerror"])["name"],
+        "scan": scan,
+        "plans": _plans(count_q, names),
+        "postgres_live_error": live.get("error") if live else None,
     }
+
+
+# ── results / model internals ───────────────────────────────────────────────
+
+@app.get("/api/benchmark")
+def benchmark():
+    return _json_file("benchmark.json")
+
+
+@app.get("/api/tuning/{name}")
+def tuning(name: str):
+    if name not in ("mlp", "treelstm"):
+        raise HTTPException(404, "unknown model")
+    return _json_file(f"tuning/{name}.json")
+
+
+def _viz_global(name: str) -> dict:
+    if name not in S.models:
+        raise HTTPException(404, f"model {name} not trained")
+    if name not in _viz_cache:
+        path = os.path.join(MODELS_DIR, f"viz_{name}.json")
+        model_path = os.path.join(MODELS_DIR, f"fusion_{name}.pt")
+        if os.path.exists(path) and os.path.getmtime(path) >= os.path.getmtime(model_path):
+            with open(path) as f:
+                _viz_cache[name] = json.load(f)
+        else:
+            df = _workload[_workload.split == "test"].sample(n=800, random_state=0)
+            data = viz.global_analysis(S, [S.engine.parse(s) for s in df.sql], name)
+            with open(path, "w") as f:
+                json.dump(data, f)
+            _viz_cache[name] = data
+    return _viz_cache[name]
+
+
+@app.get("/api/viz/global")
+def viz_global(model: str = "treelstm"):
+    return _viz_global(model)
+
+
+class TraceRequest(BaseModel):
+    sql: str = Field(..., max_length=5000)
+    model: str = "treelstm"
+
+
+@app.post("/api/viz/trace")
+def viz_trace(req: TraceRequest):
+    g = _viz_global(req.model)
+    try:
+        q = S.engine.parse(req.sql)
+    except SQLError as e:
+        raise HTTPException(400, str(e))
+    out = viz.trace_query(S, q, g.get("probes", {}), req.model)
+    out["true_count"] = S.engine.true_count(q.sub(q.rels))
+    return out
+
+
+DIST = os.path.join("frontend", "dist")
+if os.path.isdir(DIST):  # serve the built UI from the same origin
+    app.mount("/", StaticFiles(directory=DIST, html=True), name="ui")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,14 @@
-scikit-learn>=1.2
-pandas>=1.5
 numpy>=1.24
+pandas>=1.5
+sqlglot>=25
+torch>=2.2
+optuna>=3.5
+fastapi
+uvicorn[standard]
+pyyaml
+Faker
 joblib
 pytest
-psycopg2-binary
-Faker
+httpx
+# optional: only for PG_DSN live EXPLAIN comparison / scripts.init_postgres
+# psycopg2-binary
