@@ -1,4 +1,8 @@
-\.venv
+.venv
 __pycache__/
 *.pyc
-model.joblib
+data/workload/features.joblib
+models/tune.log
+.serena/
+.playwright-mcp/
+models/server.log

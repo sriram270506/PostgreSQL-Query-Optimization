@@ -1,154 +1,135 @@
-import os
-import re
+"""FactorJoin (Wu et al., SIGMOD 2023) over per-table Chow-Liu BNs.
+
+Join keys that can be equated (dept_id, emp_id, proj_id, city) share one binning.
+For a join tree, each relation sends its parent a vector over the shared key bins:
+    m_T(b) = N_T * P_BN(key = b, filters_T, soft evidence from T's own children)
+where a child's message enters T's BN as soft evidence m_child(b) / ndv(b) on the child's
+join-key node (a row with key x matches m(b)/ndv(b) child results when keys are uniform
+inside bin b). The root's total mass is the estimate. Exact BN inference inside a table,
+bin-level uniformity across tables: the FactorJoin approximation.
+"""
+from __future__ import annotations
+
 import time
-import pandas as pd
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
-from typing import Dict, Tuple, Any
+
+from src.engine.executor import JOIN_EDGES, Catalog
+from src.engine.sql import Join, Query
+from .bn import ChowLiuBN, Discretizer
+
+KEY_BINS = 64
+
+
+def _key_groups() -> List[set]:
+    groups: List[set] = []
+    for t1, c1, t2, c2 in JOIN_EDGES:
+        a, b = (t1, c1), (t2, c2)
+        hit = [g for g in groups if a in g or b in g]
+        merged = set().union(*hit) | {a, b} if hit else {a, b}
+        groups = [g for g in groups if g not in hit] + [merged]
+    return groups
+
 
 class FactorJoin:
-    """Multi-table FactorJoin Estimator supporting 6-table correlated dataset"""
-    def __init__(self, csv_dir="data/out"):
-        self.csv_dir = csv_dir
-        self.tables = {}
-        table_names = ['departments', 'employees', 'projects', 'assignments', 'locations', 'budgets']
-        for tbl in table_names:
-            fpath = os.path.join(csv_dir, f"{tbl}.csv")
-            if os.path.exists(fpath):
-                self.tables[tbl] = pd.read_csv(fpath)
+    def __init__(self, catalog: Catalog):
+        self.cat = catalog
+        self.group_of: Dict[Tuple[str, str], int] = {}
+        self.group_disc: List[Discretizer] = []
+        self.group_ndv: List[np.ndarray] = []
+        for gi, g in enumerate(_key_groups()):
+            vals = np.concatenate([catalog.tables[t].cols[c] for t, c in g if t in catalog.tables])
+            numeric = all(catalog.tables[t].numeric[c] for t, c in g if t in catalog.tables)
+            d = Discretizer(vals, numeric, n_bins=KEY_BINS)
+            uniq = np.unique(vals)
+            self.group_disc.append(d)
+            self.group_ndv.append(np.maximum(np.bincount(d.bin(uniq)[d.bin(uniq) >= 0], minlength=d.k), 1))
+            for tc in g:
+                self.group_of[tc] = gi
+        self.bns: Dict[str, ChowLiuBN] = {}
+        for t, tb in catalog.tables.items():
+            kd = {c: self.group_disc[self.group_of[(t, c)]] for c in tb.cols if (t, c) in self.group_of}
+            self.bns[t] = ChowLiuBN(tb, kd)
 
-        self.emps = self.tables.get('employees', pd.DataFrame())
-        self.deps = self.tables.get('departments', pd.DataFrame())
-        self.projs = self.tables.get('projects', pd.DataFrame())
-        self.assigns = self.tables.get('assignments', pd.DataFrame())
-        self.locs = self.tables.get('locations', pd.DataFrame())
-        self.budgets = self.tables.get('budgets', pd.DataFrame())
+    # ── single relation ────────────────────────────────────────────────────
+    def table_estimate(self, q: Query, alias: str) -> float:
+        t = q.rels[alias]
+        bn = self.bns[t]
+        L, scale = bn.likelihood(q.preds_of(alias), self.cat.tables[t])
+        return bn.n * bn.prob(L) * scale
 
-        self.tot_emps = len(self.emps) if len(self.emps) > 0 else 5000
-        self.tot_deps = len(self.deps) if len(self.deps) > 0 else 6
-        self.tot_projs = len(self.projs) if len(self.projs) > 0 else 5000
+    def selectivity(self, q: Query, alias: str) -> float:
+        return self.table_estimate(q, alias) / max(self.bns[q.rels[alias]].n, 1)
 
-        # Build 2D Contingency Table Bridge: (dept_id, city) -> budget_tier
-        if len(self.emps) > 0 and len(self.projs) > 0:
-            merged = pd.merge(self.emps, self.projs, on='dept_id')
-            contingency = merged.groupby(['dept_id', 'city', 'budget_tier']).size().unstack(fill_value=0)
-            self.contingency_probs = contingency.div(contingency.sum(axis=1), axis=0)
-        else:
-            self.contingency_probs = None
+    # ── join tree ───────────────────────────────────────────────────────────
+    def _shared_group(self, q: Query, j: Join) -> Optional[int]:
+        ga = self.group_of.get((q.rels[j.a], j.acol))
+        gb = self.group_of.get((q.rels[j.b], j.bcol))
+        return ga if ga is not None and ga == gb else None
 
-    def per_table_selectivities(self, sql: str) -> Dict[str, float]:
-        q = sql.lower()
-        selectivities = {
-            's_e': 1.0,
-            's_d': 1.0,
-            's_p': 1.0,
-            's_a': 1.0,
-            's_l': 1.0,
-            's_b': 1.0
-        }
+    def _message(self, q: Query, alias: str, parent: Optional[Join], fallback: List[float]):
+        t = q.rels[alias]
+        bn = self.bns[t]
+        L, scale = bn.likelihood(q.preds_of(alias), self.cat.tables[t])
+        for j in q.joins:
+            if j is parent or alias not in (j.a, j.b):
+                continue
+            mycol, child, _ = j.other(alias)
+            g = self._shared_group(q, j)
+            m = self._message(q, child, j, fallback)
+            if g is None:
+                # shortcut: join on columns outside a key group uses PG's 1/max(ndv); add the
+                # pair to JOIN_EDGES to model it properly
+                nd = max(len(np.unique(self.cat.tables[t].cols[mycol])),
+                         len(np.unique(self.cat.tables[q.rels[child]].cols[j.other(child)[0]])))
+                fallback.append(float(np.sum(m)) / nd)
+                continue
+            soft = m / self.group_ndv[g]
+            L[mycol] = L[mycol] * soft if mycol in L else soft
+        if parent is None:
+            return bn.n * scale * bn.prob(L)
+        mycol = parent.other(alias)[0]
+        g = self._shared_group(q, parent)
+        if g is None:  # parent joins us on an unmodelled column: send our total mass
+            return np.array(bn.n * scale * bn.prob(L))
+        return bn.n * scale * bn.belief(mycol, L)
 
-        # Employees filters
-        if "employees" in q:
-            m_dept = re.search(r"dept_id\s*=\s*(\d+)", q)
-            if m_dept:
-                v = int(m_dept.group(1))
-                selectivities['s_e'] *= float((self.emps["dept_id"] == v).mean())
-            m_salary = re.search(r"salary\s+between\s+(\d+)\s+and\s+(\d+)", q)
-            if m_salary:
-                lo, hi = int(m_salary.group(1)), int(m_salary.group(2))
-                selectivities['s_e'] *= float(((self.emps["salary"] >= lo) & (self.emps["salary"] <= hi)).mean())
-            m_city = re.search(r"city\s*=\s*'([^']+)'", sql, flags=re.IGNORECASE)
-            if m_city and "employees" in q:
-                c = m_city.group(1)
-                selectivities['s_e'] *= float((self.emps["city"].str.lower() == c.lower()).mean())
+    def estimate(self, q: Query) -> float:
+        # split into connected components; the product covers cross joins
+        remaining, total = set(q.rels), 1.0
+        while remaining:
+            root = next(a for a in q.rels if a in remaining)
+            comp, stack = {root}, [root]
+            while stack:
+                x = stack.pop()
+                for j in q.joins:
+                    if x in (j.a, j.b):
+                        y = j.b if x == j.a else j.a
+                        if y not in comp:
+                            comp.add(y)
+                            stack.append(y)
+            remaining -= comp
+            fb: List[float] = []
+            sub = q.sub(comp)
+            if len(sub.joins) > len(comp) - 1:
+                # shortcut: cyclic join graphs drop the cycle-closing edges
+                keep, seen, grew = [], {root}, True
+                while grew:
+                    grew = False
+                    for j in sub.joins:
+                        if j not in keep and (j.a in seen) != (j.b in seen):
+                            keep.append(j)
+                            seen |= {j.a, j.b}
+                            grew = True
+                sub.joins = keep
+            est = float(np.sum(self._message(sub, root, None, fb)))
+            for f in fb:
+                est *= f
+            total *= est
+        return max(1.0, total)
 
-        # Departments filters
-        if "departments" in q:
-            m_dname = re.search(r"dept_name\s*=\s*'([^']+)'", sql, flags=re.IGNORECASE)
-            if m_dname:
-                selectivities['s_d'] *= float((self.deps["dept_name"].str.lower() == m_dname.group(1).lower()).mean())
-
-        # Projects filters
-        if "projects" in q:
-            m_tier = re.search(r"budget_tier\s*=\s*(\d+)", q)
-            if m_tier:
-                t = int(m_tier.group(1))
-                selectivities['s_p'] *= float((self.projs["budget_tier"] == t).mean())
-
-        # Assignments filters
-        if "assignments" in q:
-            m_hours = re.search(r"hours_per_week\s+between\s+(\d+)\s+and\s+(\d+)", q)
-            if m_hours:
-                lo, hi = int(m_hours.group(1)), int(m_hours.group(2))
-                selectivities['s_a'] *= float(((self.assigns["hours_per_week"] >= lo) & (self.assigns["hours_per_week"] <= hi)).mean())
-
-        # Locations filters
-        if "locations" in q:
-            m_off = re.search(r"office_tier\s*=\s*(\d+)", q)
-            if m_off:
-                ot = int(m_off.group(1))
-                selectivities['s_l'] *= float((self.locs["office_tier"] == ot).mean())
-
-        # Budgets filters
-        if "budgets" in q:
-            m_amt = re.search(r"approved_amount\s+between\s+(\d+)\s+and\s+(\d+)", q)
-            if m_amt:
-                lo, hi = int(m_amt.group(1)), int(m_amt.group(2))
-                selectivities['s_b'] *= float(((self.budgets["approved_amount"] >= lo) & (self.budgets["approved_amount"] <= hi)).mean())
-
-        return selectivities
-
-    def conditional_probs(self, sql: str) -> Tuple[float, float]:
-        q = sql.lower()
-        p_dept_given_emp = 1.0
-        p_proj_given_emp = 1.0
-
-        m_city = re.search(r"city\s*=\s*'([^']+)'", sql, flags=re.IGNORECASE)
-        m_tier = re.search(r"budget_tier\s*=\s*(\d+)", q)
-
-        if m_city and m_tier and self.contingency_probs is not None:
-            city_val = m_city.group(1)
-            tier_val = int(m_tier.group(1))
-            try:
-                # Query contingency bridge P(budget_tier | city)
-                matching = self.contingency_probs.xs(tier_val, level='budget_tier')
-                p_proj_given_emp = float(matching.mean().mean())
-            except Exception:
-                p_proj_given_emp = 0.2
-
-        return p_dept_given_emp, p_proj_given_emp
-
-    def estimate(self, sql: str) -> Tuple[float, float]:
+    def timed(self, q: Query) -> Tuple[float, float]:
         t0 = time.perf_counter()
-        sel = self.per_table_selectivities(sql)
-        p_dept, p_proj = self.conditional_probs(sql)
-
-        q = sql.lower()
-        if "from employees" in q:
-            est = self.tot_emps * sel['s_e'] * sel['s_d'] * sel['s_p'] * sel['s_a'] * sel['s_l'] * sel['s_b'] * p_proj
-        elif "from projects" in q:
-            est = self.tot_projs * sel['s_p'] * sel['s_d'] * sel['s_b']
-        else:
-            est = self.tot_emps * sel['s_e'] * sel['s_p'] * p_proj
-
-        latency_ms = (time.perf_counter() - t0) * 1000.0
-        return float(max(0.0, est)), round(latency_ms, 3)
-
-    def extract_features(self, sql: str) -> Dict[str, Any]:
-        t0 = time.perf_counter()
-        sel = self.per_table_selectivities(sql)
-        p_dept, p_proj = self.conditional_probs(sql)
-        est, _ = self.estimate(sql)
-        latency_ms = (time.perf_counter() - t0) * 1000.0
-
-        return {
-            "s_e": sel['s_e'],
-            "s_d": sel['s_d'],
-            "s_p": sel['s_p'],
-            "s_a": sel['s_a'],
-            "s_l": sel['s_l'],
-            "s_b": sel['s_b'],
-            "p_dept_given_emp": p_dept,
-            "p_proj_given_emp": p_proj,
-            "factorjoin_est": est,
-            "latency_ms": round(latency_ms, 3)
-        }
+        est = self.estimate(q)
+        return est, (time.perf_counter() - t0) * 1000
