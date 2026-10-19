@@ -1,15 +1,17 @@
 """
-Load the 6-table synthetic CSVs into PostgreSQL and create indexes.
+Load a dataset into PostgreSQL, index its join keys and ANALYZE.
 Run once after `docker compose up -d`.
 
 Usage:
-  python -m scripts.init_postgres
-  python -m scripts.init_postgres --dsn postgresql://postgres:postgres@localhost:5432/carddb
+  python -m scripts.init_postgres                    # HR schema  -> database carddb
+  python -m scripts.init_postgres --dataset stats    # STATS      -> database stats
 """
 import argparse
 import os
 import sys
 import pandas as pd
+
+from src.engine import datasets
 
 try:
     import psycopg2
@@ -88,13 +90,51 @@ INDEXES = [
 ]
 
 
+def _copy(cur, table: str, path: str):
+    """Bulk-load a CSV with COPY (empty field = NULL)."""
+    with open(path, encoding="utf8") as f:
+        cur.copy_expert(f"COPY {table} FROM STDIN WITH (FORMAT csv, HEADER true, NULL '')", f)
+
+
+def load_stats(dsn: str):
+    ds = datasets.get("stats")
+    admin = psycopg2.connect(dsn.rsplit("/", 1)[0] + "/postgres")
+    admin.autocommit = True
+    with admin.cursor() as c:
+        c.execute("SELECT 1 FROM pg_database WHERE datname = 'stats'")
+        if not c.fetchone():
+            c.execute("CREATE DATABASE stats")
+    admin.close()
+    conn = psycopg2.connect(dsn.rsplit("/", 1)[0] + "/stats")
+    cur = conn.cursor()
+    cur.execute("DROP TABLE IF EXISTS " + ", ".join(ds.files) + " CASCADE")
+    with open(os.path.join(ds.csv_dir, "stats.sql"), encoding="utf8") as f:
+        cur.execute(f.read())
+    for t, f in ds.files.items():
+        _copy(cur, t, os.path.join(ds.csv_dir, f))
+        print(f"  loaded {t}")
+    for t in ds.files:  # index every join key, as the STATS-CEB benchmark setup does
+        for c in ds.key_columns(t):
+            if c != "id":
+                cur.execute(f"CREATE INDEX IF NOT EXISTS idx_{t}_{c} ON {t}({c})")
+    conn.commit()
+    conn.autocommit = True
+    cur.execute("ANALYZE")
+    conn.close()
+    print("Done: database 'stats'.")
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dsn", default=os.environ.get("PG_DSN", "postgresql://postgres:postgres@localhost:5432/carddb"))
+    parser.add_argument("--dsn", default=os.environ.get("PG_DSN", "postgresql://postgres:postgres@127.0.0.1:55432/carddb"))
     parser.add_argument("--csv-dir", default=CSV_DIR)
+    parser.add_argument("--dataset", default="hr", choices=["hr", "stats"])
     args = parser.parse_args()
 
     print("Connecting to:", args.dsn.split("@")[-1])
+    if args.dataset == "stats":
+        load_stats(args.dsn)
+        return
     conn = psycopg2.connect(args.dsn)
     conn.autocommit = False
     cur = conn.cursor()
@@ -119,7 +159,7 @@ def main():
         rows = [tuple(row) for row in df.itertuples(index=False, name=None)]
         cur.executemany(insert_sql, rows)
         conn.commit()
-        print(f"  Loaded {len(rows):,} rows → {tbl}")
+        print(f"  Loaded {len(rows):,} rows -> {tbl}")
 
     print("Creating indexes...")
     for idx in INDEXES:
@@ -136,7 +176,6 @@ def main():
     conn.close()
 
     print(f"\nDone. Set PG_DSN={args.dsn!r} in your environment to enable live EXPLAIN.")
-    print("Or pass it in the Estimator Lab's PG DSN field.")
 
 
 if __name__ == "__main__":

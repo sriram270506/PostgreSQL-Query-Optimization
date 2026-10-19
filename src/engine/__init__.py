@@ -1,17 +1,21 @@
 """Embedded SQL engine: parse -> exact execution + PostgreSQL-style planner estimates."""
 import time
-from typing import Any, Dict, Optional
+from dataclasses import replace
+from typing import Any, Dict, Optional, Union
 
+from . import datasets
+from .datasets import Dataset
 from .executor import Catalog, Executor
 from .pg_planner import PGPlanner
 from .sql import Join, Pred, Query, SQLError, parse
 
-__all__ = ["Engine", "Query", "Pred", "Join", "SQLError"]
+__all__ = ["Engine", "Query", "Pred", "Join", "SQLError", "Dataset"]
 
 
 class Engine:
-    def __init__(self, csv_dir: str = "data/out"):
-        self.catalog = Catalog(csv_dir)
+    def __init__(self, dataset: Union[str, Dataset] = "hr"):
+        self.ds = datasets.get(dataset) if isinstance(dataset, str) else dataset
+        self.catalog = Catalog(self.ds)
         self.executor = Executor(self.catalog)
         self.planner = PGPlanner(self.catalog)
 
@@ -20,7 +24,10 @@ class Engine:
         return self.catalog.schema
 
     def parse(self, sql: str) -> Query:
-        return parse(sql, self.schema)
+        q = parse(sql, self.schema)
+        ts = self.ds.timestamps
+        q.preds = [replace(p, ts=p.col in ts.get(q.rels[p.alias], [])) for p in q.preds]
+        return q
 
     def true_count(self, q: Query) -> int:
         return self.executor.count(q)[0]

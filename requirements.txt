@@ -1,5 +1,6 @@
 numpy>=1.24
-pandas>=1.5
+pandas>=2.2
+scipy>=1.11
 sqlglot>=25
 torch>=2.2
 optuna>=3.5
@@ -10,5 +11,4 @@ Faker
 joblib
 pytest
 httpx
-# optional: only for PG_DSN live EXPLAIN comparison / scripts.init_postgres
-# psycopg2-binary
+psycopg2-binary

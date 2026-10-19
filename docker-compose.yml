@@ -2,14 +2,15 @@ version: "3.9"
 
 services:
   postgres:
-    image: postgres:16-alpine
+    build: ./docker/postgres
+    image: carddb-pg16-hintplan
     container_name: carddb
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: carddb
     ports:
-      - "5432:5432"
+      - "55432:5432"  # 5432/5433 are often taken by local PostgreSQL installs
     volumes:
       - carddb_data:/var/lib/postgresql/data
     healthcheck:

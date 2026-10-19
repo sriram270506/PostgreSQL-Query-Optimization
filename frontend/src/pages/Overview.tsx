@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight, Database, GitBranch, Network, Sigma } from 'lucide-react'
-import { api, fmtInt, fmtQ, pct } from '../lib'
+import { api, EST_LABEL, EST_SHORT, fmtInt, fmtQ, pct } from '../lib'
 import type { Bench } from '../types'
 import { Card, EstName, SectionHead, Skeleton } from '../components/ui'
 
 const STEPS = [
-  { icon: Database, t: 'Embedded SQL engine', d: 'Parses SQL, runs it exactly in memory and emulates the PostgreSQL planner’s row estimates. No server needed.' },
+  { icon: Database, t: 'Embedded SQL engine', d: 'Parses SQL and runs it exactly in memory for true counts and result rows. PostgreSQL’s estimates come from a real PostgreSQL 16 server.' },
   { icon: Sigma, t: 'Bayesian networks', d: 'One Chow-Liu tree per table, learned with MLE. Captures column correlations such as city ↔ department.' },
   { icon: GitBranch, t: 'FactorJoin', d: 'Passes per-key-bin row counts between tables to estimate joins without running them.' },
   { icon: Network, t: 'TreeLSTM + MLP', d: 'Reads the query tree, combines it with the statistics and learns a correction on top of FactorJoin.' },
@@ -15,8 +15,9 @@ export default function Overview() {
   const [b, setB] = useState<Bench | null>(null)
   const [err, setErr] = useState('')
   useEffect(() => { api<Bench>('/benchmark').then(setB).catch(e => setErr(e.message)) }, [])
-  const best = 'treelstm'
   const a = b?.accuracy
+  const best = a ? (['treelstm', 'mlp', 'mscn'].filter(n => a[n]).sort((x, y) => a[x].overall.p99 - a[y].overall.p99)[0] ?? 'factorjoin') : 'treelstm'
+  const pg = 'postgres_live'
   return (
     <>
       <section style={{ paddingTop: 56 }}>
@@ -35,7 +36,7 @@ export default function Overview() {
           <Card k="Held-out test set" title={b ? `${fmtInt(b.n_test)} unseen queries` : 'Loading…'}>
             {!b && !err && <Skeleton h={150} />}
             {err && <p className="note">Benchmark not available yet ({err}). Run <span className="mono">python -m scripts.benchmark</span>.</p>}
-            {a && b.estimators.map(n => (
+            {a && b.estimators.filter(n => a[n]).map(n => (
               <div key={n} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--line)' }}>
                 <EstName name={n} />
                 <span className="num" style={{ fontSize: 13 }}>
@@ -49,17 +50,25 @@ export default function Overview() {
         </div>
       </section>
 
-      {a && b && a[best] && (
+      {a && b && a[best] && a[pg] && (
         <section className="section">
           <div className="stats">
-            <div className="stat"><div className="v num">{fmtQ(a[best].overall.p99)}</div><div className="l">TreeLSTM p99 Q-error</div>
-              <div className="d">vs {fmtQ(a.postgres.overall.p99)} for PostgreSQL ({(a.postgres.overall.p99 / a[best].overall.p99).toFixed(1)}× lower)</div></div>
+            <div className="stat"><div className="v num">{fmtQ(a[best].overall.p99)}</div><div className="l">{EST_SHORT[best]} p99 Q-error</div>
+              <div className="d">vs {fmtQ(a[pg].overall.p99)} for {EST_LABEL[pg]} ({(a[pg].overall.p99 / a[best].overall.p99).toFixed(1)}× lower)</div></div>
             <div className="stat"><div className="v num">{fmtQ(a[best].overall.max)}</div><div className="l">Worst-case Q-error</div>
-              <div className="d">PostgreSQL’s worst: {fmtQ(a.postgres.overall.max)}</div></div>
-            <div className="stat"><div className="v num">{pct(b.plans[best].optimal_rate, 1)}</div><div className="l">Optimal join orders</div>
-              <div className="d">PostgreSQL: {pct(b.plans.postgres.optimal_rate, 1)} on 3+ table queries</div></div>
-            <div className="stat"><div className="v num">{fmtQ(a[best].correlated.p99)}</div><div className="l">p99 on correlated filters</div>
-              <div className="d">PostgreSQL: {fmtQ(a.postgres.correlated.p99)} on the same {a[best].correlated.n} queries</div></div>
+              <div className="d">{EST_LABEL[pg]}’s worst: {fmtQ(a[pg].overall.max)}</div></div>
+            {b.plans && b.plans[best] && b.plans[pg] ? (
+              <div className="stat"><div className="v num">{pct(b.plans[best].optimal_rate, 1)}</div><div className="l">Optimal join orders</div>
+                <div className="d">{EST_LABEL[pg]}: {pct(b.plans[pg].optimal_rate, 1)} on 3+ table queries</div></div>
+            ) : <div className="stat"><div className="v num">{pct(a[best].overall.within_2x, 1)}</div><div className="l">Within 2× of truth</div>
+              <div className="d">{EST_LABEL[pg]}: {pct(a[pg].overall.within_2x, 1)}</div></div>}
+            {b.ceb ? (
+              <div className="stat"><div className="v num">{fmtQ(b.ceb.accuracy[best].overall.p95)}</div><div className="l">STATS-CEB p95</div>
+                <div className="d">{EST_LABEL[pg]}: {fmtQ(b.ceb.accuracy[pg]?.overall.p95 ?? 0)} on the 146 official queries</div></div>
+            ) : a[best].correlated && a[pg].correlated ? (
+              <div className="stat"><div className="v num">{fmtQ(a[best].correlated.p99)}</div><div className="l">p99 on correlated filters</div>
+                <div className="d">{EST_LABEL[pg]}: {fmtQ(a[pg].correlated.p99)} on the same {a[best].correlated.n} queries</div></div>
+            ) : null}
           </div>
         </section>
       )}

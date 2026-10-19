@@ -22,10 +22,11 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 
-from src.engine.executor import Catalog, pred_mask
+from src.engine.executor import Catalog, pred_count
 from src.engine.pg_planner import PGPlanner
 from src.engine.sql import OPS, Query
 from .factorjoin import FactorJoin
@@ -50,10 +51,10 @@ class Featurizer:
         self.tables = list(catalog.tables)
         self.columns = sorted({f"{t}.{c}" for t, tb in catalog.tables.items() for c in tb.cols})
         self.col_idx = {c: i for i, c in enumerate(self.columns)}
-        self.vocab = sorted({str(v) for tb in catalog.tables.values() for c in tb.cols
-                             if not tb.numeric[c] and c != "name" for v in np.unique(tb.cols[c])})
+        self.vocab = sorted({str(v) for t, tb in catalog.tables.items() for c in catalog.ds.filters.get(t, [])
+                             if not tb.numeric[c] for v in np.unique(tb.cols[c][pd.notna(tb.cols[c])])})
         self.vocab_idx = {v: i for i, v in enumerate(self.vocab)}
-        self.range = {(t, c): (float(tb.cols[c].min()), float(tb.cols[c].max()))
+        self.range = {(t, c): (float(np.nanmin(tb.cols[c])), float(np.nanmax(tb.cols[c])))
                       for t, tb in catalog.tables.items() for c in tb.cols if tb.numeric[c]}
         nt, nc = len(self.tables), len(self.columns)
         self.slices = {"type": (0, 4), "table": (4, 4 + nt), "column": (4 + nt, 4 + nt + nc),
@@ -98,6 +99,7 @@ class Featurizer:
         return v
 
     def tree(self, q: Query) -> TreeSample:
+        q = q.canonical()
         feats, parent, labels, meta = [], [], [], []
 
         def add(vec, par, label, m):
@@ -156,7 +158,7 @@ class Featurizer:
         for v, m in zip(feats, meta):
             if m["kind"] == "PRED":
                 tb = self.cat.tables[m["table"]]
-                v[st] = math.log(max(float(pred_mask(tb, m["pred"]).mean()), 1e-6)) / 14
+                v[st] = math.log(max(pred_count(tb, m["pred"]) / max(tb.n, 1), 1e-6)) / 14
             elif m["kind"] == "SCAN":
                 v[st] = math.log(max(self.fj.selectivity(q, m["alias"]), 1e-9)) / 14
                 v[st + 1] = math.log(self.pg.rel_rows(q, m["alias"]) / max(self.cat.tables[m["table"]].n, 1)) / 14
@@ -167,6 +169,7 @@ class Featurizer:
         return TreeSample(np.stack(feats), parent_a, height, labels, meta)
 
     def stats(self, q: Query) -> np.ndarray:
+        q = q.canonical()
         v = np.zeros(len(self.stats_names), dtype=np.float32)
         nt = len(self.tables)
         for a, t in q.rels.items():
@@ -344,3 +347,64 @@ def train(cfg: Dict, ds: Dataset, tr_idx, va_idx, node_dim: int, max_epochs: int
                 break
     model.load_state_dict(best_state)
     return model, {"best_val": best, "history": hist}
+
+
+# ─── stacked ensemble (serving) ──────────────────────────────────────────────
+
+class StackedFusion(nn.Module):
+    """M same-config FusionModels evaluated in one pass: every weight gets a leading
+    member dimension, so the tree is walked once for all members instead of M times.
+    Numerically equivalent to running the members one by one (tested)."""
+
+    def __init__(self, models: List[FusionModel]):
+        super().__init__()
+        m0 = models[0]
+        self.use_tree = m0.use_tree
+        self.act = torch.nn.functional.gelu if m0.cfg.get("activation") == "gelu" else torch.relu
+        st = lambda get: torch.stack([get(m).detach() for m in models])  # noqa: E731
+        if self.use_tree:
+            self.We, self.be = st(lambda m: m.tree.embed[0].weight), st(lambda m: m.tree.embed[0].bias)
+            self.Wiou, self.biou = st(lambda m: m.tree.W_iou.weight), st(lambda m: m.tree.W_iou.bias)
+            self.Uiou = st(lambda m: m.tree.U_iou.weight)
+            self.Wf, self.bf = st(lambda m: m.tree.W_f.weight), st(lambda m: m.tree.W_f.bias)
+            self.Uf = st(lambda m: m.tree.U_f.weight)
+            self.H = m0.tree.hidden
+        lin = [i for i, l in enumerate(m0.mlp) if isinstance(l, nn.Linear)]
+        self.mlp = [(st(lambda m, i=i: m.mlp[i].weight), st(lambda m, i=i: m.mlp[i].bias)) for i in lin]
+        self.Wo, self.bo = st(lambda m: m.out.weight), st(lambda m: m.out.bias)
+
+    @staticmethod
+    def _lin(x, W, b=None):
+        y = torch.matmul(x, W.transpose(1, 2))  # (M,N,i) or broadcast (N,i) @ (M,i,o) -> (M,N,o)
+        return y if b is None else y + b[:, None, :]
+
+    @torch.inference_mode()
+    def forward(self, batch) -> torch.Tensor:
+        """(members, queries) predicted log(1 + rows)."""
+        M = self.Wo.shape[0]
+        parts = [batch["stats"].expand(M, -1, -1)]
+        if self.use_tree:
+            x, parent, height = batch["x"], batch["parent"], batch["height"]
+            N, H = x.shape[0], self.H
+            e = torch.relu(self._lin(x, self.We, self.be))
+            h = x.new_zeros(M, N, H)
+            c = x.new_zeros(M, N, H)
+            child = torch.arange(N)
+            for lvl in range(int(height.max()) + 1):
+                idx = (height == lvl).nonzero(as_tuple=True)[0]
+                kids = child[(parent >= 0) & (height[parent.clamp(min=0)] == lvl)]
+                kp = parent[kids]
+                h_sum = x.new_zeros(M, N, H).index_add(1, kp, h[:, kids])[:, idx]
+                iou = self._lin(e[:, idx], self.Wiou, self.biou) + self._lin(h_sum, self.Uiou)
+                i, o, u = iou.chunk(3, dim=2)
+                i, o, u = torch.sigmoid(i), torch.sigmoid(o), torch.tanh(u)
+                f = torch.sigmoid(self._lin(e[:, kp], self.Wf, self.bf) + self._lin(h[:, kids], self.Uf))
+                fc = x.new_zeros(M, N, H).index_add(1, kp, f * c[:, kids])[:, idx]
+                c_new = i * u + fc
+                c = c.index_copy(1, idx, c_new)
+                h = h.index_copy(1, idx, o * torch.tanh(c_new))
+            parts.insert(0, h[:, batch["roots"]])
+        z = torch.cat(parts, dim=2)
+        for W, b in self.mlp:
+            z = self.act(self._lin(z, W, b))
+        return batch["log_fj"][None, :] + self._lin(z, self.Wo, self.bo).squeeze(2)

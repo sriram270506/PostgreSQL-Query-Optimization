@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install (CPU torch first, then the exact lockfile)
+        run: |
+          pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.lock
+      - name: Unit, property, fuzz and API tests
+        run: pytest -q
+      - name: Accuracy regression gate (HR, 300-query subsample)
+        run: |
+          python -m scripts.benchmark --dataset hr --quick --out bench_ci.json
+          python -m scripts.check_regression --current bench_ci.json --baseline models/benchmark.json
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npx tsc -b && npx vite build
+        working-directory: frontend

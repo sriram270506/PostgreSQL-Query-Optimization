@@ -1,19 +1,25 @@
 import { useEffect, useState } from 'react'
 import { Play, Shuffle, Trophy } from 'lucide-react'
-import { api, EST_COLOR, fmtCompact, fmtInt, fmtMs, fmtQ } from '../lib'
+import { api, EST_COLOR, EST_SHORT, fmtCompact, fmtInt, fmtMs, fmtQ, getDataset } from '../lib'
 import type { RunResult } from '../types'
 import { Card, ErrorBox, EstName, Seg, Skeleton } from '../components/ui'
 import { PlanTree } from '../components/charts'
 
-const STARTERS = [
+const STARTERS_STATS = [
+  "SELECT COUNT(*) FROM comments c, posts p, postHistory ph, votes v, users u WHERE v.UserId = u.Id AND c.UserId = u.Id AND p.OwnerUserId = u.Id AND ph.UserId = u.Id AND p.ViewCount >= 0 AND p.AnswerCount >= 0 AND p.AnswerCount <= 5 AND ph.PostHistoryTypeId = 2 AND v.BountyAmount >= 0 AND v.BountyAmount <= 100 AND u.Views >= 0 AND u.Views <= 13",
+  "SELECT COUNT(*) FROM posts p, postLinks pl WHERE p.Id = pl.RelatedPostId AND p.AnswerCount >= 0 AND p.CreationDate >= '2010-09-06 00:58:21'::timestamp",
+  "SELECT u.Id, u.Reputation, b.Date FROM users u JOIN badges b ON b.UserId = u.Id WHERE u.Reputation > 5000 AND b.Date >= '2014-01-01 00:00:00'::timestamp LIMIT 50",
+]
+const STARTERS_HR = [
   "SELECT COUNT(*) FROM employees e JOIN departments d ON e.dept_id = d.dept_id WHERE d.dept_name = 'Engineering' AND e.city = 'Bangalore'",
   "SELECT COUNT(*) FROM employees e JOIN projects p ON e.dept_id = p.dept_id JOIN assignments a ON e.emp_id = a.emp_id JOIN budgets b ON p.proj_id = b.proj_id WHERE e.city = 'Bangalore' AND p.budget_tier = 5 AND e.salary BETWEEN 82009 AND 142009",
   "SELECT e.name, e.city, p.priority, a.hours_per_week FROM employees e JOIN assignments a ON e.emp_id = a.emp_id JOIN projects p ON p.proj_id = a.proj_id WHERE p.priority = 'Critical' AND e.age < 30 LIMIT 50",
 ]
 const CATS = ['1-table', '2-way join', '3-way join', '4+ way join']
+const starters = () => (getDataset() === 'stats' ? STARTERS_STATS : STARTERS_HR)
 
 export default function QueryLab() {
-  const [sql, setSql] = useState(STARTERS[0])
+  const [sql, setSql] = useState(starters()[0])
   const [res, setRes] = useState<RunResult | null>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
@@ -47,7 +53,7 @@ export default function QueryLab() {
               <button className="btn" onClick={() => run()} disabled={busy}><Play size={15} aria-hidden />{busy ? 'Running…' : 'Run query'}</button>
               <span className="note">Ctrl + Enter</span>
               <div className="chips" style={{ marginLeft: 'auto' }}>
-                {STARTERS.map((s, i) => <button key={i} className="chip" onClick={() => { setSql(s); run(s) }}>Example {i + 1}</button>)}
+                {starters().map((s, i) => <button key={i} className="chip" onClick={() => { setSql(s); run(s) }}>Example {i + 1}</button>)}
               </div>
             </div>
             {err && <div style={{ marginTop: 14 }}><ErrorBox error={err} /></div>}
@@ -97,14 +103,18 @@ export default function QueryLab() {
                           </div>
                         </td>
                         <td className="r num">{fmtMs(e.latency_ms)}</td>
-                        <td>{e.name === res.best ? <span className="tag win"><Trophy size={12} aria-hidden />closest</span>
-                          : <span className="tag">{e.under ? 'under' : 'over'}</span>}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{e.name === res.best ? <span className="tag win"><Trophy size={12} aria-hidden />closest</span>
+                          : <span className="tag">{e.under ? 'under' : 'over'}</span>}
+                          {e.fallback && <span className="tag" title="Ensemble seeds disagreed beyond the calibrated threshold, so FactorJoin's estimate was used" style={{ marginLeft: 4 }}>fallback</span>}
+                          {e.clamped && <span className="tag bad" title="Raw estimate exceeded the provable upper bound and was clamped" style={{ marginLeft: 4 }}>clamped</span>}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              {res.postgres_live_error && <p className="note" style={{ marginTop: 10 }}>Live PostgreSQL unavailable: {res.postgres_live_error}</p>}
+              <p className="note" style={{ marginTop: 10 }}>Provable upper bound for this query: {fmtCompact(res.upper_bound)} rows. No estimate is allowed above it.
+                Learned models are {res.estimators.find(e => e.std !== undefined && e.std > 0) ? 'multi-seed ensembles; "fallback" means the seeds disagreed and FactorJoin answered' : 'served as ensembles'}.</p>
+              {res.postgres_live_error && <p className="note" style={{ marginTop: 6 }}>Live PostgreSQL unavailable: {res.postgres_live_error}</p>}
             </Card>
           </section>
 
@@ -118,7 +128,7 @@ export default function QueryLab() {
                       <td><b>{s.table}</b> <span className="note">({s.alias})</span>
                         {s.preds.map(p => <div key={p} className="mono" style={{ color: 'var(--muted)', fontSize: 11 }}>{p}</div>)}</td>
                       <td className="r num"><b>{fmtInt(s.actual)}</b><div className="note">of {fmtCompact(s.total)}</div></td>
-                      <td className="r num">{fmtInt(s.pg)}</td>
+                      <td className="r num">{s.pg == null ? '–' : fmtInt(s.pg)}</td>
                       <td className="r num">{fmtInt(s.factorjoin)}</td>
                     </tr>))}</tbody>
                 </table></div>
@@ -167,7 +177,7 @@ function Plans({ plans }: { plans: NonNullable<RunResult['plans']> }) {
           )
         })}
       </div>
-      <Seg value={sel} options={names.map(n => [n, n === 'postgres' ? 'PostgreSQL' : n === 'factorjoin' ? 'FactorJoin' : n === 'mlp' ? 'MLP' : 'TreeLSTM'] as [string, string])} onChange={setSel} />
+      <Seg value={sel} options={names.map(n => [n, EST_SHORT[n] ?? n] as [string, string])} onChange={setSel} />
       <div style={{ marginTop: 12 }}><PlanTree plan={p.plan} color={EST_COLOR[sel]} /></div>
       <p className="note">Cost (C<sub>out</sub>) = total rows produced by all intermediate joins. This plan: {fmtCompact(p.true_cost)} rows. Best possible: {fmtCompact(plans.optimal_cost)} rows.</p>
     </Card>

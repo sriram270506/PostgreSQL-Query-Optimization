@@ -16,10 +16,12 @@
   --line-2: #e2d8d8;
   --good: #2e7d4f;
   --bad: #b3261e;
-  /* estimator identity: fixed order, validated (dataviz validator, light surface) */
+  /* estimator identity, fixed order: PG, PG+stats, FactorJoin, MSCN, MLP, TreeLSTM (validated, light surface) */
   --c-postgres: #3d72b0;
+  --c-xstats: #5e7f23;
   --c-factorjoin: #d08c1e;
-  --c-mlp: #2e9c80;
+  --c-mscn: #9a5fc2;
+  --c-mlp: #14a3a3;
   --c-treelstm: #b01e4f;
   --mono: 'JetBrains Mono', ui-monospace, monospace;
   --serif: 'Playfair Display', Georgia, serif;
@@ -141,3 +143,8 @@ h3.sub { font-size: 16px; font-weight: 700; margin: 0 0 4px; letter-spacing: -.0
 .footer { margin-top: 72px; padding-top: 18px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--faint); letter-spacing: .04em; }
 .fade-in { animation: fi .35s ease both; }
 @keyframes fi { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.ds-switch { display: inline-flex; background: #efe9e7; border-radius: 999px; padding: 3px; gap: 2px; }
+.ds-switch button { border: 0; background: transparent; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700; color: var(--ink-2); letter-spacing: .04em; }
+.ds-switch button.on { background: #fff; color: var(--maroon); box-shadow: 0 1px 3px #0001; }
+.ci { font-size: 10.5px; color: var(--faint); display: block; }
