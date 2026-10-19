@@ -1,26 +1,49 @@
-export const EST = ['postgres', 'factorjoin', 'mlp', 'treelstm'] as const
-export type EstName = (typeof EST)[number] | 'postgres_live'
+/** display order of estimators in every chart (validated palette order) */
+export const EST = ['postgres_live', 'postgres_xstats', 'factorjoin', 'mscn', 'mlp', 'treelstm'] as const
+export type EstName = (typeof EST)[number]
 
 export const EST_LABEL: Record<string, string> = {
-  postgres: 'PostgreSQL planner',
+  postgres_live: 'PostgreSQL 16',
+  postgres_xstats: 'PG + CREATE STATISTICS',
   factorjoin: 'FactorJoin (BN)',
+  mscn: 'MSCN (baseline)',
   mlp: 'Fusion MLP',
   treelstm: 'TreeLSTM + MLP',
-  postgres_live: 'PostgreSQL (live)',
+}
+export const EST_SHORT: Record<string, string> = {
+  postgres_live: 'PostgreSQL', postgres_xstats: 'PG+stats', factorjoin: 'FactorJoin',
+  mscn: 'MSCN', mlp: 'MLP', treelstm: 'TreeLSTM',
 }
 export const EST_COLOR: Record<string, string> = {
-  postgres: 'var(--c-postgres)',
+  postgres_live: 'var(--c-postgres)',
+  postgres_xstats: 'var(--c-xstats)',
   factorjoin: 'var(--c-factorjoin)',
+  mscn: 'var(--c-mscn)',
   mlp: 'var(--c-mlp)',
   treelstm: 'var(--c-treelstm)',
-  postgres_live: 'var(--c-postgres)',
+}
+/** the estimators a chart shows, in the fixed palette order */
+export function chartEstimators(names: string[]): string[] {
+  const has = new Set(names)
+  return EST.filter(n => has.has(n))
+}
+
+let currentDataset = 'hr'
+try { currentDataset = localStorage.getItem('dataset') || 'hr' } catch { /* storage blocked */ }
+export const getDataset = () => currentDataset
+export function setDataset(d: string) {
+  currentDataset = d
+  try { localStorage.setItem('dataset', d) } catch { /* storage blocked */ }
 }
 
 export async function api<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`/api${path}`, body === undefined ? undefined : {
+  const sep = path.includes('?') ? '&' : '?'
+  const url = body === undefined ? `/api${path}${sep}dataset=${currentDataset}` : `/api${path}`
+  const payload = body && typeof body === 'object' ? { dataset: currentDataset, ...body } : body
+  const res = await fetch(url, payload === undefined ? undefined : {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`

@@ -20,7 +20,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from src.engine.executor import filter_rows, pred_mask
+from src.engine.executor import filter_rows, pred_count
 from src.engine.sql import Query
 from .neural import FusionModel
 from .service import Estimators
@@ -67,7 +67,7 @@ def _input_groups(S: Estimators, model: FusionModel) -> List[Dict]:
         {"name": "Tables present", "idx": [off + i for i in range(nt)]},
         {"name": "BN selectivities", "idx": [off + nt + i for i in range(nt)]},
         {"name": "FactorJoin estimate", "idx": [off + names.index("log_fj")]},
-        {"name": "PostgreSQL estimate", "idx": [off + names.index("log_pg")]},
+        {"name": "Planner estimate (feature)", "idx": [off + names.index("log_pg")]},
         {"name": "Query shape (#tables, #preds)", "idx": [off + names.index("n_tables"), off + names.index("n_preds")]},
     ]
     return groups
@@ -104,7 +104,7 @@ def _true_node_targets(S: Estimators, q: Query, meta: List[dict], cache: Dict[st
     for m in meta:
         if m["kind"] == "PRED":
             tb = cat.tables[m["table"]]
-            out.append(math.log10(max(pred_mask(tb, m["pred"]).sum(), 1)))
+            out.append(math.log10(max(pred_count(tb, m["pred"]), 1)))
         elif m["kind"] == "SCAN":
             out.append(math.log10(max(len(filter_rows(cat.tables[m["table"]], q.preds_of(m["alias"]))), 1)))
         else:
@@ -117,8 +117,8 @@ def _true_node_targets(S: Estimators, q: Query, meta: List[dict], cache: Dict[st
 
 
 def global_analysis(S: Estimators, queries: List[Query], name: str = "treelstm") -> dict:
-    model = S.models[name][0]
-    ds = S.dataset(queries, name)
+    model, bundle = S.member(name)
+    ds = S.tree_data(queries, bundle)
     idx = np.arange(len(queries))
     batch = ds.batch(idx, model.use_tree)
     with torch.no_grad():
@@ -224,8 +224,8 @@ def global_analysis(S: Estimators, queries: List[Query], name: str = "treelstm")
 def trace_query(S: Estimators, q: Query, probes: Dict[str, dict], name: str = "treelstm") -> dict:
     """Bottom-up walk of one query through both networks."""
     q = q.sub(q.rels)
-    model = S.models[name][0]
-    ds = S.dataset([q], name)
+    model, bundle = S.member(name)
+    ds = S.tree_data([q], bundle)
     batch = ds.batch(np.arange(1), model.use_tree)
     with torch.no_grad():
         z, tr = _mlp_input(model, batch, trace=True)

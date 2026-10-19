@@ -6,3 +6,9 @@ models/tune.log
 .serena/
 .playwright-mcp/
 models/server.log
+data/stats/raw/
+data/stats/old/
+data/workload/*.features.*.joblib
+models/*.log
+models/**/feedback.jsonl
+models/feedback.jsonl

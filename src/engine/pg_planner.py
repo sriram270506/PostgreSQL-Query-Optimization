@@ -133,19 +133,32 @@ class PGPlanner:
             return self._range(s, p.value[0], p.value[1])
         return self._ineqsel(s, p.op, p.value)
 
-    def _range(self, s: ColStats, lo, hi) -> float:
+    def _range(self, s: ColStats, lo, hi, lo_op: str = "ge", hi_op: str = "le") -> float:
         if not s.numeric:
             return DEFAULT_RANGE_INEQ_SEL
-        sel = self._ineqsel(s, "ge", lo) + self._ineqsel(s, "le", hi) - 1.0
+        # clauselist_selectivity range pair: both halves exclude NULLs, so add null_frac back
+        sel = self._ineqsel(s, lo_op, lo) + self._ineqsel(s, hi_op, hi) - 1.0 + s.null_frac
         if sel > 0:
             return sel
-        return DEFAULT_RANGE_INEQ_SEL if sel < -0.01 else 1e-10  # as in clauselist_selectivity
+        return DEFAULT_RANGE_INEQ_SEL if sel < -0.01 else 1e-10
 
     def rel_rows(self, q: Query, alias: str) -> float:
         t = q.rels[alias]
         sel = 1.0
+        lower, upper = {}, {}
         for p in q.preds_of(alias):
-            sel *= self.pred_sel(t, p)
+            if p.op in ("ge", "gt") and p.col not in lower:
+                lower[p.col] = p
+            elif p.op in ("le", "lt") and p.col not in upper:
+                upper[p.col] = p
+            else:
+                sel *= self.pred_sel(t, p)
+        for c in set(lower) | set(upper):  # `a >= x AND a <= y` is one range clause, as in PG
+            lo, hi = lower.get(c), upper.get(c)
+            if lo and hi:
+                sel *= self._range(self.stats[t][c], lo.value, hi.value, lo.op, hi.op)
+            else:
+                sel *= self.pred_sel(t, lo or hi)
         return max(1.0, round(self.reltuples[t] * sel))  # clamp_row_est
 
     # ── join selectivity ────────────────────────────────────────────────────
@@ -176,6 +189,7 @@ class PGPlanner:
         return (1.0 - s1.null_frac) * (1.0 - s2.null_frac) / max(nd1, nd2, 1.0)
 
     def estimate(self, q: Query) -> float:
+        q = q.canonical()
         rows = 1.0
         for a in q.rels:
             rows *= self.rel_rows(q, a)

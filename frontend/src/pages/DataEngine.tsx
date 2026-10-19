@@ -1,24 +1,30 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { api, fmtInt, seq } from '../lib'
+import { api, fmtInt, getDataset, seq } from '../lib'
 import { Card, ErrorBox, SectionHead, Skeleton } from '../components/ui'
 import { Heatmap } from '../components/charts'
 
 type Schema = { tables: { name: string; rows: number; columns: { name: string; type: string; distinct: number; min?: number; max?: number; values?: string[] }[] }[]; joins: { left: string; right: string }[] }
-type BN = { table: string; rows: number; nodes: { id: string; bins: string[]; marginal: number[] }[]; edges: { parent: string; child: string; mi: number; cpt: number[][] }[] }
+type BN = { table: string; rows: number; nodes: { id: string; bins: string[]; marginal: number[] }[]; edges: { parent: string; child: string; mi: number; cpt: number[][] }[]; pruned: { a: string; b: string; mi: number; mi_corrected: number }[] }
 type Rows = { columns: string[]; rows: unknown[][]; total: number; page: number; page_size: number }
 
 export default function DataEngine() {
   const [s, setS] = useState<Schema | null>(null)
   const [err, setErr] = useState('')
-  const [table, setTable] = useState('employees')
-  useEffect(() => { api<Schema>('/schema').then(setS).catch(e => setErr(e.message)) }, [])
+  const [table, setTable] = useState('')
+  const stats = getDataset() === 'stats'
+  useEffect(() => { api<Schema>('/schema').then(r => { setS(r); setTable(r.tables[stats ? 1 : 1]?.name ?? r.tables[0].name) }).catch(e => setErr(e.message)) }, [stats])
   return (
     <>
       <section style={{ paddingTop: 48 }}>
         <div className="eyebrow">Data & engine</div>
-        <h1 className="display" style={{ fontSize: 'clamp(36px,4.4vw,54px)' }}>Six tables, <em>planted correlations</em></h1>
-        <p className="lede">A synthetic HR schema with dependencies built in. Engineering sits mostly in Bangalore, Bangalore projects get bigger budgets, and age, experience and salary rise together. These are exactly the cases where the independence assumption fails.</p>
+        {stats ? <>
+          <h1 className="display" style={{ fontSize: 'clamp(36px,4.4vw,54px)' }}>Real data: <em>Stack Exchange</em></h1>
+          <p className="lede">The STATS benchmark (Han et al., VLDB 2022): 8 tables and about 1 million rows from stats.stackexchange.com. It has skewed counts, NULLs, timestamps and many-to-many joins on user and post ids. Our engine's exact counts match all 146 official STATS-CEB ground-truth cardinalities.</p>
+        </> : <>
+          <h1 className="display" style={{ fontSize: 'clamp(36px,4.4vw,54px)' }}>Six tables, <em>planted correlations</em></h1>
+          <p className="lede">A synthetic HR schema with dependencies built in. Engineering sits mostly in Bangalore, Bangalore projects get bigger budgets, and age, experience and salary rise together. These are exactly the cases where the independence assumption fails.</p>
+        </>}
       </section>
       {err && <section className="section"><ErrorBox error={err} /></section>}
       {!s && !err && <section className="section"><Skeleton h={200} /></section>}
@@ -30,7 +36,7 @@ export default function DataEngine() {
               <button key={t.name} onClick={() => setTable(t.name)} className="card" style={{ textAlign: 'left', borderColor: t.name === table ? 'var(--maroon)' : undefined, boxShadow: t.name === table ? '0 0 0 3px #8a153812' : undefined }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><h3 className="sub">{t.name}</h3><span className="num note">{fmtInt(t.rows)} rows</span></div>
                 <div style={{ marginTop: 8, display: 'grid', gap: 3 }}>
-                  {t.columns.map(c => (
+                  {t.columns.slice(0, 9).map(c => (
                     <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12.5 }}>
                       <span className="mono">{c.name}</span>
                       <span className="note" style={{ textAlign: 'right' }}>{c.type === 'number' ? `${fmtInt(c.min!)}–${fmtInt(c.max!)}` : c.values ? `${c.values.length} values` : `${fmtInt(c.distinct)} distinct`}</span>
@@ -41,8 +47,8 @@ export default function DataEngine() {
             ))}
           </div>
         </section>
-        <BNView table={table} />
-        <Browser table={table} />
+        {table && <BNView table={table} />}
+        {table && <Browser table={table} />}
       </>}
     </>
   )
@@ -57,18 +63,18 @@ function BNView({ table }: { table: string }) {
   }, [table])
   const layout = useMemo(() => {
     if (!bn) return null
-    const kids: Record<string, string[]> = {}
-    bn.edges.forEach(e => (kids[e.parent] ??= []).push(e.child))
-    const root = bn.nodes[0].id
+    // undirected forest: root each component at its first column, lay components side by side
+    const nbr: Record<string, string[]> = {}
+    bn.edges.forEach(e => { (nbr[e.parent] ??= []).push(e.child); (nbr[e.child] ??= []).push(e.parent) })
     const pos: Record<string, { x: number; y: number }> = {}
     let leaf = 0
-    const place = (n: string, d: number): number => {
-      const ks = kids[n] ?? []
-      const x = ks.length ? ks.map(k => place(k, d + 1)).reduce((a, b) => a + b) / ks.length : leaf++
+    const place = (n: string, from: string | null, d: number): number => {
+      const ks = (nbr[n] ?? []).filter(k => k !== from)
+      const x = ks.length ? ks.map(k => place(k, n, d + 1)).reduce((a, b) => a + b) / ks.length : leaf++
       pos[n] = { x, y: d }
       return x
     }
-    place(root, 0)
+    bn.nodes.forEach(nd => { if (!pos[nd.id]) place(nd.id, null, 0) })
     return { pos, w: Math.max(leaf, 1), h: Math.max(...Object.values(pos).map(p => p.y)) + 1 }
   }, [bn])
   if (!bn || !layout) return <section className="section"><Skeleton h={260} /></section>
@@ -79,8 +85,8 @@ function BNView({ table }: { table: string }) {
   const pn = bn.nodes.find(n => n.id === e?.parent), cn = bn.nodes.find(n => n.id === e?.child)
   return (
     <section className="section">
-      <SectionHead eyebrow="Bayesian network" title={<>Chow-Liu tree for <em>{table}</em></>}>
-        Structure: the tree that links the most strongly related columns, measured by mutual information (thicker = stronger). Parameters: MLE counts. Click an edge to see its conditional probability table.
+      <SectionHead eyebrow="Bayesian network" title={<>Chow-Liu forest for <em>{table}</em></>}>
+        Structure: the maximum-likelihood forest linking the most strongly related columns by mutual information (thicker = stronger). Parameters: MLE counts. Click an edge to see its conditional probability table.
       </SectionHead>
       <div className="grid g2">
         <Card k={`${bn.nodes.length} variables · ${bn.edges.length} edges`}>
@@ -99,7 +105,8 @@ function BNView({ table }: { table: string }) {
                 <text x={p.x} y={p.y + 4} textAnchor="middle" style={{ fontSize: 11, fill: 'var(--ink)', fontWeight: 600 }}>{n.id}</text>
               </g>) })}
           </svg>
-          <p className="note">Edge label = mutual information in nats.</p>
+          <p className="note">Edge label = bias-corrected mutual information (nats). Edges are kept only if a G-test rejects independence (p &lt; 0.001), so unrelated columns stay unconnected (a forest).</p>
+          {bn.pruned.length > 0 && <p className="note" style={{ marginTop: 6 }}>Rejected as noise: {bn.pruned.slice(0, 6).map(p => `${p.a}–${p.b} (raw MI ${p.mi.toFixed(3)})`).join(', ')}{bn.pruned.length > 6 ? ` and ${bn.pruned.length - 6} more` : ''}.</p>}
         </Card>
         <Card k="Conditional probability table" title={e ? `P(${e.child} | ${e.parent})` : 'No edges'}>
           {e && pn && cn && (pn.bins.length * cn.bins.length <= 1600 ? (

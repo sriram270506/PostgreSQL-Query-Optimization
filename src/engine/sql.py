@@ -7,11 +7,12 @@ WHERE <conjunction of col OP literal | col BETWEEN lo AND hi | col IN (...) | a.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import sqlglot
 import sqlglot.expressions as exp
-from sqlglot.errors import ParseError
+from sqlglot.errors import SqlglotError
 
 
 class SQLError(ValueError):
@@ -30,14 +31,16 @@ class Pred:
     col: str
     op: str
     value: Any  # scalar; (lo, hi) for between; tuple of values for in
+    ts: bool = False  # value is epoch seconds of a TIMESTAMP column
 
     def to_sql(self) -> str:
         c = f"{self.alias}.{self.col}"
+        lit = (lambda v: _ts_lit(v)) if self.ts else _lit
         if self.op == "between":
-            return f"{c} BETWEEN {_lit(self.value[0])} AND {_lit(self.value[1])}"
+            return f"{c} BETWEEN {lit(self.value[0])} AND {lit(self.value[1])}"
         if self.op == "in":
-            return f"{c} IN ({', '.join(_lit(v) for v in self.value)})"
-        return f"{c} {_SQL_OP[self.op]} {_lit(self.value)}"
+            return f"{c} IN ({', '.join(lit(v) for v in self.value)})"
+        return f"{c} {_SQL_OP[self.op]} {lit(self.value)}"
 
 
 @dataclass(frozen=True)
@@ -75,6 +78,17 @@ class Query:
             joins=[j for j in self.joins if j.a in s and j.b in s],
             preds=[p for p in self.preds if p.alias in s],
         )
+
+    def canonical(self) -> "Query":
+        """Same query, independent of how it was written: relations ordered by (table,
+        alias), each join edge oriented a<b and sorted, predicates sorted. Learned models
+        featurise this form, so FROM order / ON-side order cannot change an estimate."""
+        rels = dict(sorted(self.rels.items(), key=lambda kv: (kv[1], kv[0])))
+        order = {a: i for i, a in enumerate(rels)}
+        joins = sorted((j if order[j.a] <= order[j.b] else Join(j.b, j.bcol, j.a, j.acol) for j in self.joins),
+                       key=lambda j: (order[j.a], order[j.b], j.acol, j.bcol))
+        preds = sorted(self.preds, key=lambda p: (order[p.alias], p.col, p.op, str(p.value)))
+        return Query(rels=rels, joins=joins, preds=preds, count=self.count, select=self.select, limit=self.limit)
 
     def key(self) -> str:
         return "|".join(sorted(self.rels)) + "#" + ";".join(sorted(p.to_sql() for p in self.preds))
@@ -118,7 +132,21 @@ def _lit(v: Any) -> str:
     return str(int(v)) if float(v).is_integer() else str(v)
 
 
+def _ts_lit(v) -> str:
+    return "'" + datetime.fromtimestamp(int(v), tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S") + "'::timestamp"
+
+
 def _literal(node: exp.Expression) -> Any:
+    if isinstance(node, exp.Cast):  # '2014-09-11 08:55:52'::timestamp -> epoch seconds
+        inner = _literal(node.this)
+        if isinstance(inner, str) and node.to.this in (exp.DataType.Type.TIMESTAMP, exp.DataType.Type.DATE,
+                                                       exp.DataType.Type.TIMESTAMPTZ, exp.DataType.Type.DATETIME):
+            try:
+                fmt = "%Y-%m-%d %H:%M:%S" if len(inner) > 10 else "%Y-%m-%d"
+                return int(datetime.strptime(inner[:19], fmt).replace(tzinfo=timezone.utc).timestamp())
+            except ValueError:
+                raise SQLError(f"invalid timestamp literal: {inner}") from None
+        return inner
     if isinstance(node, exp.Neg):
         return -_literal(node.this)
     if isinstance(node, exp.Paren):
@@ -135,7 +163,7 @@ def parse(sql: str, schema: Dict[str, List[str]]) -> Query:
     """Parse `sql` against `schema` (table -> column names)."""
     try:
         tree = sqlglot.parse_one(sql.strip().rstrip(";"), dialect="postgres")
-    except ParseError as e:
+    except SqlglotError as e:
         raise SQLError(f"syntax error: {str(e).splitlines()[0]}") from None
     if not isinstance(tree, exp.Select):
         raise SQLError("only SELECT statements are supported")

@@ -14,19 +14,9 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from .datasets import Dataset
 from .sql import Join, Pred, Query, SQLError
 
-TABLES = ["departments", "employees", "projects", "assignments", "locations", "budgets"]
-# Foreign-key style join edges of the schema: (table, col, table, col).
-JOIN_EDGES = [
-    ("departments", "dept_id", "employees", "dept_id"),
-    ("departments", "dept_id", "projects", "dept_id"),
-    ("employees", "dept_id", "projects", "dept_id"),
-    ("employees", "emp_id", "assignments", "emp_id"),
-    ("projects", "proj_id", "assignments", "proj_id"),
-    ("projects", "proj_id", "budgets", "proj_id"),
-    ("employees", "city", "locations", "city"),
-]
 DEFAULT_ROW_LIMIT = 200
 CYCLIC_ROW_GUARD = 5_000_000
 
@@ -42,48 +32,106 @@ class Table:
             num = pd.api.types.is_numeric_dtype(df[c])
             self.numeric[c] = num
             self.cols[c] = df[c].to_numpy(dtype=np.float64 if num else object)
+        self._sorted: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
+
+    def sorted_col(self, col: str) -> Tuple[np.ndarray, np.ndarray]:
+        """(non-NULL values sorted, matching row ids), built once per column. Turns a
+        predicate into one or two binary searches instead of a full column scan."""
+        if col not in self._sorted:
+            v = self.cols[col]
+            keep = np.flatnonzero(np.asarray(pd.notna(v)))
+            vals = v[keep] if self.numeric[col] else v[keep].astype(str)
+            order = np.argsort(vals, kind="stable")
+            self._sorted[col] = (vals[order], keep[order])
+        return self._sorted[col]
 
 
 class Catalog:
-    def __init__(self, csv_dir: str = "data/out"):
+    def __init__(self, ds: Dataset):
+        self.ds = ds
         self.tables: Dict[str, Table] = {}
-        for t in TABLES:
-            p = os.path.join(csv_dir, f"{t}.csv")
-            if os.path.exists(p):
-                self.tables[t] = Table(t, pd.read_csv(p))
+        for t, f in ds.files.items():
+            p = os.path.join(ds.csv_dir, f)
+            if not os.path.exists(p):
+                continue
+            df = pd.read_csv(p)
+            df.columns = [c.lower() for c in df.columns]
+            for c in ds.timestamps.get(t, []):  # timestamps become epoch seconds (NULL stays NaN)
+                ts = pd.to_datetime(df[c]).dt.as_unit("s")  # pandas infers ns/us/s; pin to seconds
+                df[c] = ts.astype("int64").where(ts.notna())
+            self.tables[t] = Table(t, df)
         if not self.tables:
-            raise FileNotFoundError(f"no table CSVs found in {csv_dir}")
+            raise FileNotFoundError(f"no table CSVs found in {ds.csv_dir}")
 
     @property
     def schema(self) -> Dict[str, List[str]]:
         return {t: list(tb.df.columns) for t, tb in self.tables.items()}
 
 
+def as_number(v, col: str = "") -> float:
+    """Numeric literal; timestamp strings ('2014-09-11 08:55:52') become epoch seconds."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        pass
+    try:
+        return float(pd.Timestamp(v).timestamp())
+    except (TypeError, ValueError):
+        raise SQLError(f'invalid input syntax for type numeric: "{v}" ({col})') from None
+
+
 def _coerce(table: Table, p: Pred):
     vals = p.value if p.op in ("between", "in") else (p.value,)
     if table.numeric[p.col]:
-        out = []
-        for v in vals:
-            try:
-                out.append(float(v))
-            except (TypeError, ValueError):
-                raise SQLError(f'invalid input syntax for type numeric: "{v}" ({p.col})') from None
-        return out
+        return [as_number(v, p.col) for v in vals]
     return [str(v) for v in vals]
 
 
-def pred_mask(table: Table, p: Pred) -> np.ndarray:
-    col = table.cols[p.col]
+def pred_mask(table: Table, p: Pred, rows: Optional[np.ndarray] = None) -> np.ndarray:
+    """Boolean mask of rows satisfying `p` (only over `rows` if given)."""
+    col = table.cols[p.col] if rows is None else table.cols[p.col][rows]
     v = _coerce(table, p)
     if p.op == "eq":
         return col == v[0]
-    if p.op == "ne":
-        return col != v[0]
+    if p.op == "ne":  # NULL <> x is NULL, i.e. not a match
+        return (col != v[0]) & pd.notna(col)
     if p.op == "in":
         return np.isin(col, np.array(v, dtype=col.dtype))
     if p.op == "between":
         return (col >= v[0]) & (col <= v[1])
     return {"lt": col < v[0], "le": col <= v[0], "gt": col > v[0], "ge": col >= v[0]}[p.op]
+
+
+def pred_slices(table: Table, p: Pred) -> List[Tuple[int, int]]:
+    """Index ranges into table.sorted_col(p.col) whose rows satisfy `p` (NULLs never do).
+    Equivalent to pred_mask, in O(log n) per bound."""
+    vals, _ = table.sorted_col(p.col)
+    v = _coerce(table, p)
+    if not table.numeric[p.col]:
+        v = [str(x) for x in v]
+    ss = lambda x, side: int(np.searchsorted(vals, x, side))  # noqa: E731
+    n = len(vals)
+    if p.op == "eq":
+        return [(ss(v[0], "left"), ss(v[0], "right"))]
+    if p.op == "ne":
+        return [(0, ss(v[0], "left")), (ss(v[0], "right"), n)]
+    if p.op == "in":
+        return [(ss(x, "left"), ss(x, "right")) for x in sorted(set(v))]
+    if p.op == "between":
+        return [(ss(v[0], "left"), ss(v[1], "right"))]
+    return [{"lt": (0, ss(v[0], "left")), "le": (0, ss(v[0], "right")),
+             "gt": (ss(v[0], "right"), n), "ge": (ss(v[0], "left"), n)}[p.op]]
+
+
+def pred_count(table: Table, p: Pred) -> int:
+    return sum(max(b - a, 0) for a, b in pred_slices(table, p))
+
+
+def pred_rows(table: Table, p: Pred) -> np.ndarray:
+    """Row ids satisfying `p`, from the sorted index (cost ~ number of matches)."""
+    _, ids = table.sorted_col(p.col)
+    parts = [ids[a:b] for a, b in pred_slices(table, p) if b > a]
+    return np.concatenate(parts) if parts else np.zeros(0, dtype=np.int64)
 
 
 def filter_rows(table: Table, preds: List[Pred]) -> np.ndarray:

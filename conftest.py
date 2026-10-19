@@ -24,7 +24,7 @@ requires_data = pytest.mark.skipif(
 @pytest.fixture(scope="session")
 def engine():
     from src.engine import Engine
-    return Engine(CSV_DIR)
+    return Engine("hr")
 
 
 @pytest.fixture(scope="session")
@@ -43,3 +43,15 @@ def tables():
         if os.path.exists(path):
             out[n] = pd.read_csv(path)
     return out
+
+
+requires_stats = pytest.mark.skipif(
+    not os.path.exists(os.path.join(ROOT, "data", "stats", "raw", "stats_CEB.sql")),
+    reason="STATS not downloaded - run `python -m scripts.fetch_stats`",
+)
+
+
+@pytest.fixture(scope="session")
+def stats_engine():
+    from src.engine import Engine
+    return Engine("stats")

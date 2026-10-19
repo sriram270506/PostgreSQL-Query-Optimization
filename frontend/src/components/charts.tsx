@@ -71,7 +71,7 @@ export function GroupedLogBars({ groups, series, value, height = 260, fmt = fmtQ
                   <g key={s} onMouseMove={e => show(e, <><b>{EST_LABEL[s]}</b><br />{g}: {fmt(v)}</>)} onMouseLeave={hide}>
                     <rect x={x - 1} y={pad.t} width={bw + 2} height={height - pad.t - pad.b} fill="transparent" />
                     <path d={roundTop(x, height - pad.b - h, bw, h)} fill={EST_COLOR[s]} />
-                    {gw > 90 && <text x={x + bw / 2} y={height - pad.b - h - 4} textAnchor="middle" style={{ fontSize: 9.5, fill: 'var(--ink-2)' }}>{fmt(v).replace('×', '')}</text>}
+                    {gw > 90 && series.length <= 4 && <text x={x + bw / 2} y={height - pad.b - h - 4} textAnchor="middle" style={{ fontSize: 9.5, fill: 'var(--ink-2)' }}>{fmt(v).replace('×', '')}</text>}
                   </g>
                 )
               })}

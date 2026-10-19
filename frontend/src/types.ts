@@ -4,33 +4,47 @@ export type QSummary = { n: number; median: number; mean: number; p90: number; p
 export type Latency = { mean_ms: number; p50_ms: number; p95_ms: number }
 export type PlanStats = { n: number; optimal_rate: number; median_ratio: number; mean_ratio: number; p95_ratio: number; max_ratio: number }
 
+export type Acc = {
+  overall: QSummary; ci95: Record<'median' | 'p95' | 'p99', [number, number]>; under: number
+  guards?: { fallback_rate: number; clamp_rate: number }; correlated?: QSummary
+} & Record<string, unknown>
+export type Sig = { a: string; b: string; mean_log_q_a: number; mean_log_q_b: number; a_better_frac: number; b_better_frac: number; p_value: number }
+export type Props = { order_invariant_rate: number; monotone_violation_rate: number; monotone_violation_median_ratio: number; raw_bound_violation_rate: number }
+export type MS = { mean: number; std: number }
+
 export type Bench = {
-  n_test: number; n_train: number; n_val: number
+  dataset: string; n_test: number; n_train: number; n_val: number; data_hash: string; stale_models: Record<string, boolean>
   estimators: string[]; labels: Record<string, string>
-  accuracy: Record<string, { overall: QSummary; correlated: QSummary; by_category: Record<string, QSummary>; under: number }>
-  latency: Record<string, Latency>
-  plans: Record<string, PlanStats>
-  worst_for_postgres: ({ sql: string; category: string; true: number } & Record<string, number | string>)[]
+  accuracy: Record<string, Acc>
+  significance: Sig[]
+  seeds: Record<string, Record<'median' | 'p95' | 'p99' | 'max' | 'within_2x', MS> & { n_seeds: number }>
   scatter: { true: number[]; category: string[] } & Record<string, number[]>
-  tuning: Record<string, { best_params: Record<string, unknown>; best_val: number; n_params: number; tune_seconds: number; train_seconds: number; n_trials: number }>
+  ceb?: { accuracy: Record<string, Acc>; significance: Sig[]; scatter: { true: number[] } & Record<string, number[]>; plans?: Record<string, PlanStats> }
+  ood: Record<string, { n: number; accuracy: Record<string, Acc> }>
+  drift?: Record<string, Record<string, QSummary>>
+  plans?: Record<string, PlanStats>
+  latency: Record<string, Latency & { p99_ms: number }>
+  properties: Record<string, Props>
+  tuning: Record<string, { best_params: Record<string, unknown>; best_val: number; n_trials: number; tune_seconds: number; importance: Record<string, number> }>
+  ensemble: Record<string, { tau: number; seeds: number; val_mean_log_q_ensemble: number; train_seconds: number[] }>
 }
 
 export type Tuning = {
   model: string; best_params: Record<string, string | number>; best_val: number
-  final_history: { epoch: number; train_loss: number; val_mean_log_q: number }[]
-  test: Record<string, number>; n_params: number; tune_seconds: number; train_seconds: number
-  importance: Record<string, number>
+  tune_seconds: number; importance: Record<string, number>
+  ensemble?: { tau: number; seeds: number; val_mean_log_q_ensemble: number; train_seconds: number[] }
   trials: { number: number; state: string; value: number | null; params: Record<string, string | number>; curve: number[] }[]
 }
 
-export type EstResult = { name: string; label: string; estimate: number; latency_ms: number; qerror: number; under: boolean }
+export type EstResult = { name: string; label: string; estimate: number; latency_ms: number; qerror: number; under: boolean; std?: number; fallback?: boolean; clamped?: boolean }
 export type RunResult = {
   sql: string; count: number; exec_ms: number; count_ms: number; fetch_ms: number
   rows: { columns: string[]; data: unknown[][]; shown: number; truncated: boolean } | null
   estimators: EstResult[]; best: string
-  scan: { alias: string; table: string; actual: number; pg: number; factorjoin: number; total: number; preds: string[] }[]
+  scan: { alias: string; table: string; actual: number; pg: number | null; factorjoin: number; total: number; preds: string[] }[]
   plans: null | { optimal_cost: number; optimal: PlanNode; estimators: Record<string, { true_cost: number; ratio: number; plan: PlanNode }> }
   postgres_live_error: string | null
+  upper_bound: number
 }
 
 export type Neuron = { unit: number; profile: number[]; detects: string; detail: string; purity: number; card_corr: number; top: { label: string; act: number }[] }
