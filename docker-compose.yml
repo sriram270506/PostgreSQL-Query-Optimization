@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     build: ./docker/postgres
@@ -7,10 +5,11 @@ services:
     container_name: carddb
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      # no default: put POSTGRES_PASSWORD in .env (see .env.example)
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: carddb
     ports:
-      - "55432:5432"  # 5432/5433 are often taken by local PostgreSQL installs
+      - "127.0.0.1:55432:5432"  # localhost only; 5432/5433 are often taken by local installs
     volumes:
       - carddb_data:/var/lib/postgresql/data
     healthcheck:

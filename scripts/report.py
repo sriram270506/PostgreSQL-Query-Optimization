@@ -29,11 +29,24 @@ def acc_table(acc, ci=True):
     return "\n".join(rows)
 
 
+def verdict(c, a, b):
+    return {"a better": f"{LABEL[a]} better", "b better": f"{LABEL[b]} better"}.get(c["verdict"], c["verdict"])
+
+
+def cmp_line(pairs):
+    return "Matched: " + "; ".join(f"{LABEL[p.split(' vs ')[0]]} vs {LABEL[p.split(' vs ')[1]]}: "
+                                   f"{c['mean_log_q_diff']:+.3f} [{c['ci95_mean'][0]:+.3f}, {c['ci95_mean'][1]:+.3f}] "
+                                   f"({verdict(c, *p.split(' vs '))})" for p, c in pairs.items() if c.get("ci95_mean"))
+
+
 def section(path, title):
     if not os.path.exists(path):
         return f"### {title}\n\n_not run yet_\n"
     b = json.load(open(path))
-    out = [f"### {title}", "", f"{b['n_test']:,} held-out test queries ({b['n_train']:,} train / {b['n_val']:,} val).", "",
+    pv = b.get("provenance", {})
+    prov = (f" Produced by commit `{(pv.get('git_commit') or '?')[:10]}`{' (dirty tree)' if pv.get('git_dirty') else ''}, "
+            f"data `{pv.get('data_hash')}`, workload `{pv.get('workload_sha256')}`." if pv else "")
+    out = [f"### {title}", "", f"{b['n_test']:,} held-out test queries ({b['n_train']:,} train / {b['n_val']:,} val).{prov}", "",
            acc_table(b["accuracy"]), ""]
     if "ceb" in b:
         out += ["**Official STATS-CEB workload (146 queries):**", "", acc_table(b["ceb"]["accuracy"]), ""]
@@ -53,10 +66,46 @@ def section(path, title):
                 out.append(f"| {LABEL[n]} | {s['n_seeds']} | {s['median']['mean']:.3f} ± {s['median']['std']:.3f} | "
                            f"{s['p95']['mean']:.2f} ± {s['p95']['std']:.2f} | {s['p99']['mean']:.1f} ± {s['p99']['std']:.1f} |")
         out.append("")
-    for k, label in (("split_tmpl", "Unseen query templates"), ("split_shape", "Unseen join sizes (train 1–3 tables, test 4–5)")):
+    for k, label in (("split_tmpl", "Unseen query templates"), ("split_shape", "Unseen join sizes (train 1–3 tables, test 4–5)"),
+                     ("split_join", "Unseen join graphs"), ("split_sel", "Unseen cardinality range (both tails held out)")):
         if k in b.get("ood", {}):
-            out += [f"**Out of distribution: {label}** ({b['ood'][k]['n']:,} queries)", "",
+            out += [f"**Out of distribution: {label}** ({b['ood'][k]['n']:,} queries, models retrained without them)", "",
                     acc_table(b["ood"][k]["accuracy"], ci=False), ""]
+            if b["ood"][k].get("compare"):
+                out += [cmp_line(b["ood"][k]["compare"]), ""]
+    for k, v in b.get("special", {}).items():
+        out += [f"**Never-trained set: {v['label']}** ({v['n']:,} queries)", "", acc_table(v["accuracy"], ci=False), ""]
+    if b.get("compare"):
+        out += ["**Matched comparisons** (paired bootstrap 95% CI of the difference in mean log Q-error; "
+                "negative = first is better; CI containing 0 = inconclusive):", "",
+                "| Queries | Pair | Δ mean log-q [95% CI] | verdict |", "|---|---|---|---|"]
+        for sl, pairs in b["compare"].items():
+            for pair, c in pairs.items():
+                if c.get("ci95_mean"):
+                    a_, b_ = pair.split(" vs ")
+                    out.append(f"| {sl} | {LABEL[a_]} vs {LABEL[b_]} | {c['mean_log_q_diff']:+.3f} "
+                               f"[{c['ci95_mean'][0]:+.3f}, {c['ci95_mean'][1]:+.3f}] | {verdict(c, a_, b_)} |")
+        ag = b.get("seeds", {}).get("agreement")
+        if ag:
+            out += ["", "Per-seed agreement (share of seed pairs in which the first model wins): "
+                    + ", ".join(f"{LABEL[p.split(' vs ')[0]]} vs {LABEL[p.split(' vs ')[1]]} {v * 100:.0f}%" for p, v in ag.items())]
+        out.append("")
+    if b.get("breakdown"):
+        bd = b["breakdown"]
+        out += ["**Where errors come from** (p95 Q-error per slice of the test set):", ""]
+        for dim, rows in bd.items():
+            names = [n for n in ORDER if any(n in r for r in rows.values())]
+            out += [f"| {dim} | n | " + " | ".join(LABEL[n] for n in names) + " |", "|---|---|" + "---|" * len(names)]
+            for k_, r in rows.items():
+                out.append(f"| {k_} | {r['n']:,} | " + " | ".join(q(r[n]["p95"]) for n in names) + " |")
+            out.append("")
+    if b.get("calibration"):
+        out += ["**Uncertainty calibration on test** (Spearman of seed spread vs error; p95 Q-error on the most-confident 80% / all):", ""]
+        for n, c in b["calibration"].items():
+            cc = {x["coverage"]: x["p95_q"] for x in c["coverage_curve"]}
+            out.append(f"- {LABEL[n]}: Spearman {c['spearman_std_vs_error']:.2f}, p95 {q(cc[0.8])} / {q(cc[1.0])}, "
+                       f"fallback fired on {c['fallback_rate'] * 100:.1f}%")
+        out.append("")
     if b.get("drift"):
         out += ["**Data drift** (models built on the 2013-06 snapshot, about half of today's rows):", "",
                 "| Variant | Estimator | median | p95 | p99 |", "|---|---|---|---|---|"]

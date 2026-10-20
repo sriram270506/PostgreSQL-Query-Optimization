@@ -11,16 +11,22 @@ export type Acc = {
 export type Sig = { a: string; b: string; mean_log_q_a: number; mean_log_q_b: number; a_better_frac: number; b_better_frac: number; p_value: number }
 export type Props = { order_invariant_rate: number; monotone_violation_rate: number; monotone_violation_median_ratio: number; raw_bound_violation_rate: number }
 export type MS = { mean: number; std: number }
+export type Cmp = { n: number; verdict: string; mean_log_q_diff?: number; ci95_mean?: [number, number]; p95_log_diff?: number; ci95_p95?: [number, number] }
 
 export type Bench = {
   dataset: string; n_test: number; n_train: number; n_val: number; data_hash: string; stale_models: Record<string, boolean>
   estimators: string[]; labels: Record<string, string>
   accuracy: Record<string, Acc>
   significance: Sig[]
-  seeds: Record<string, Record<'median' | 'p95' | 'p99' | 'max' | 'within_2x', MS> & { n_seeds: number }>
+  seeds: Record<string, Record<'median' | 'p95' | 'p99' | 'max' | 'within_2x', MS> & { n_seeds: number }> & { agreement?: Record<string, number> }
   scatter: { true: number[]; category: string[] } & Record<string, number[]>
   ceb?: { accuracy: Record<string, Acc>; significance: Sig[]; scatter: { true: number[] } & Record<string, number[]>; plans?: Record<string, PlanStats> }
-  ood: Record<string, { n: number; accuracy: Record<string, Acc> }>
+  ood: Record<string, { n: number; definition?: string; accuracy: Record<string, Acc>; compare?: Record<string, Cmp> }>
+  breakdown?: Record<string, Record<string, { n: number } & Record<string, { median: number; p95: number; mean_log_q: number }>>>
+  compare?: Record<string, Record<string, Cmp>>
+  calibration?: Record<string, { spearman_std_vs_error: number; fallback_rate: number; coverage_curve: { coverage: number; mean_log_q: number; p95_q: number }[] }>
+  special?: Record<string, { label: string; n: number; accuracy: Record<string, Acc>; compare: Record<string, Cmp> }>
+  provenance?: { git_commit: string | null; git_dirty: boolean; time_utc: string; data_hash: string; workload_sha256: string; hardware: Record<string, unknown>; postgres: { version?: string } | null }
   drift?: Record<string, Record<string, QSummary>>
   plans?: Record<string, PlanStats>
   latency: Record<string, Latency & { p99_ms: number }>

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { EST_COLOR, EST_LABEL } from '../lib'
 
 export function SectionHead({ eyebrow, title, children }: { eyebrow: string; title: ReactNode; children?: ReactNode }) {
@@ -42,11 +42,25 @@ export function Legend({ names }: { names: string[] }) {
   return <div className="legend">{names.map(n => <span key={n}><span className="dot" style={{ background: EST_COLOR[n] }} />{EST_LABEL[n]}</span>)}</div>
 }
 
-export function Seg<T extends string>({ value, options, onChange }: { value: T; options: [T, string][]; onChange: (v: T) => void }) {
+/** Segmented control = a radio group: one tab stop, arrow keys / Home / End move the choice. */
+export function Seg<T extends string>({ value, options, onChange, label }: { value: T; options: [T, string][]; onChange: (v: T) => void; label?: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const key = (e: React.KeyboardEvent) => {
+    const i = options.findIndex(o => o[0] === value)
+    const n = options.length
+    const j = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? (i + 1) % n
+      : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? (i - 1 + n) % n
+      : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : -1
+    if (j < 0) return
+    e.preventDefault()
+    onChange(options[j][0])
+    ref.current?.querySelectorAll<HTMLButtonElement>('button')[j]?.focus()
+  }
   return (
-    <div className="seg" role="tablist">
+    <div className="seg" role="radiogroup" aria-label={label} ref={ref} onKeyDown={key}>
       {options.map(([v, l]) => (
-        <button key={v} role="tab" aria-selected={v === value} className={v === value ? 'on' : ''} onClick={() => onChange(v)}>{l}</button>
+        <button key={v} type="button" role="radio" aria-checked={v === value} tabIndex={v === value ? 0 : -1}
+          className={v === value ? 'on' : ''} onClick={() => onChange(v)}>{l}</button>
       ))}
     </div>
   )
@@ -56,8 +70,13 @@ export function Skeleton({ h = 160 }: { h?: number }) {
   return <div className="skeleton" style={{ height: h }} aria-label="Loading" />
 }
 
-export function ErrorBox({ error }: { error: string }) {
-  return <div className="error" role="alert">{error}</div>
+export function ErrorBox({ error, onRetry }: { error: string; onRetry?: () => void }) {
+  return (
+    <div className="error" role="alert">
+      {error}
+      {onRetry && <button type="button" className="btn ghost" style={{ marginLeft: 12, height: 32 }} onClick={onRetry}>Retry</button>}
+    </div>
+  )
 }
 
 /** tooltip state helper: position follows the pointer */

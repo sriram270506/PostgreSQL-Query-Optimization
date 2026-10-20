@@ -19,7 +19,6 @@ from src.estimator.neural import log_qerror
 from src.estimator.training import (build_model, ensemble_log, load_workload, model_path, save, train_one,
                                     tuned_cfg)
 
-FALLBACK_QUANTILE = 0.95  # ensemble spread above the val 95th percentile -> trust FactorJoin
 
 
 def main():
@@ -30,7 +29,7 @@ def main():
     ap.add_argument("--seeds", type=int, default=5)
     ap.add_argument("--calibrate-only", action="store_true", help="recompute fallback calibration only")
     args = ap.parse_args()
-    torch.set_num_threads(min(8, os.cpu_count() or 1))
+    torch.set_num_threads(int(os.environ.get("TORCH_THREADS", min(8, os.cpu_count() or 1))))
     wl = load_workload(args.dataset)
     mdir = wl.engine.ds.models_dir
     sp = wl.split(args.split)
@@ -61,23 +60,48 @@ def main():
             json.dump(meta, f, indent=1)
 
 
+TAU_GRID = (0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.98, 0.99)
+
+
 def calibrate(wl, v, members) -> dict:
     """Uncertainty threshold + whether falling back to FactorJoin actually helps.
 
-    tau = 95th percentile of the ensemble's log-spread on validation. The fallback is only
-    switched on if, on the validation queries above tau, FactorJoin's estimate is closer to
-    the truth than the ensemble's: a guard has to earn its place on held-out data."""
+    tau is grid-searched over quantiles of the ensemble's log-spread on validation, picking
+    the one that minimises validation mean + CVaR95 log Q-error *with the fallback applied*.
+    The fallback is switched on only if that beats never falling back: a guard has to earn
+    its place on held-out data. Also reports how well the spread ranks errors (Spearman) and
+    the error of the most-confident x% (coverage curve)."""
+    from scipy.stats import spearmanr
+    from src.estimator.neural import val_score
+    v = np.asarray(v)
     mfeats = [wl.mscn_feats[i] for i in v]
     trees = [wl.trees[i] for i in v]
     mean, std, _ = ensemble_log(members, trees, wl.stats[v], mfeats)
-    tau = float(np.quantile(std, FALLBACK_QUANTILE))
+    y = wl.y[v]
+    fj = np.log1p(wl.df.fj_estimate.to_numpy(float)[v])
+    e_nn, e_fj = log_qerror(mean, y), log_qerror(fj, y)
+    tail = {"select": "tail"}
+    base = val_score(e_nn, tail)
+    grid = []
+    for qt in TAU_GRID:
+        tau = float(np.quantile(std, qt))
+        e = np.where(std > tau, e_fj, e_nn)
+        grid.append({"quantile": qt, "tau": tau, "score": val_score(e, tail), "mean_log_q": float(e.mean())})
+    best = min(grid, key=lambda g: g["score"])
+    on = best["score"] < base - 1e-4
+    tau = best["tau"] if on else float(np.quantile(std, 0.95))
     unsure = std > tau
-    fj = np.log1p(np.array([wl.fj.estimate(wl.engine.parse(wl.df.sql.iloc[i])) for i in np.asarray(v)[unsure]]))
-    nn_err = float(log_qerror(mean[unsure], wl.y[v][unsure]).mean()) if unsure.any() else 0.0
-    fj_err = float(log_qerror(fj, wl.y[v][unsure]).mean()) if unsure.any() else 0.0
-    return {"tau": tau, "fallback": bool(unsure.any() and fj_err < nn_err),
-            "val_uncertain_n": int(unsure.sum()), "val_uncertain_mean_log_q": {"ensemble": nn_err, "factorjoin": fj_err},
-            "val_mean_log_q_ensemble": float(log_qerror(mean, wl.y[v]).mean())}
+    order = np.argsort(std)
+    coverage = [{"coverage": c, "mean_log_q": float(e_nn[order[:max(1, int(c * len(v)))]].mean())}
+                for c in (0.5, 0.7, 0.8, 0.9, 0.95, 1.0)]
+    rho = spearmanr(std, e_nn).correlation if len(v) > 2 else float("nan")
+    return {"tau": tau, "tau_quantile": best["quantile"] if on else 0.95, "fallback": bool(on),
+            "tau_grid": grid, "val_score_no_fallback": base,
+            "val_uncertain_n": int(unsure.sum()),
+            "val_uncertain_mean_log_q": {"ensemble": float(e_nn[unsure].mean()) if unsure.any() else 0.0,
+                                         "factorjoin": float(e_fj[unsure].mean()) if unsure.any() else 0.0},
+            "spearman_std_vs_error": float(rho), "coverage_curve": coverage,
+            "val_mean_log_q_ensemble": float(e_nn.mean())}
 
 
 if __name__ == "__main__":

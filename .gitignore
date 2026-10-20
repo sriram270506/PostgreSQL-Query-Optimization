@@ -12,3 +12,4 @@ data/workload/*.features.*.joblib
 models/*.log
 models/**/feedback.jsonl
 models/feedback.jsonl
+.env

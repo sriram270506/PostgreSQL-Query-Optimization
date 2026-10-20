@@ -9,6 +9,7 @@ at LIMIT never drops valid rows.
 from __future__ import annotations
 
 import os
+import time
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -18,7 +19,26 @@ from .datasets import Dataset
 from .sql import Join, Pred, Query, SQLError
 
 DEFAULT_ROW_LIMIT = 200
+MAX_ROWS = 1000            # hard cap on returned rows, however the limit was requested
 CYCLIC_ROW_GUARD = 5_000_000
+MAX_RELATIONS = 8          # complexity budget for one query
+MAX_PREDICATES = 40
+MAX_IN_VALUES = 200
+DEFAULT_BUDGET_S = 10.0    # wall-clock budget, checked cooperatively between operators
+
+
+class BudgetExceeded(SQLError):
+    pass
+
+
+def check_complexity(q: Query):
+    if len(q.rels) > MAX_RELATIONS:
+        raise SQLError(f"query joins {len(q.rels)} tables; the limit is {MAX_RELATIONS}")
+    if len(q.preds) > MAX_PREDICATES:
+        raise SQLError(f"query has {len(q.preds)} conditions; the limit is {MAX_PREDICATES}")
+    for p in q.preds:
+        if p.op == "in" and len(p.value) > MAX_IN_VALUES:
+            raise SQLError(f"IN list with {len(p.value)} values; the limit is {MAX_IN_VALUES}")
 
 
 class Table:
@@ -166,6 +186,12 @@ def _components(q: Query) -> Tuple[List[List[str]], bool]:
 
 
 class Executor:
+    deadline: Optional[float] = None  # time.monotonic() deadline for the current query
+
+    def _tick(self):
+        if self.deadline is not None and time.monotonic() > self.deadline:
+            raise BudgetExceeded("query exceeded its execution time budget")
+
     def __init__(self, catalog: Catalog):
         self.cat = catalog
 
@@ -190,7 +216,9 @@ class Executor:
 
     def fetch(self, q: Query, limit: Optional[int] = None) -> pd.DataFrame:
         """Up to `limit` result rows (LIMIT, else DEFAULT_ROW_LIMIT)."""
-        limit = q.limit if q.limit is not None else (limit or DEFAULT_ROW_LIMIT)
+        # one hard cap: SQL LIMIT, the caller's limit and MAX_ROWS, whichever is smallest
+        limit = min(x for x in (q.limit if q.limit is not None else DEFAULT_ROW_LIMIT, limit, MAX_ROWS)
+                    if x is not None)
         rows = self._rows(q)
         comps, acyclic = _components(q)
         if not acyclic:
@@ -254,6 +282,7 @@ class Executor:
 
     def _collect_weights(self, q: Query, rows, alias: str, parent: Optional[Join], out) -> np.ndarray:
         """Row weights of `alias` = number of join results of its subtree each row takes part in."""
+        self._tick()
         wv = np.ones(len(rows[alias]), dtype=np.float64)
         for j in q.joins:
             if j is parent or alias not in (j.a, j.b):
@@ -270,6 +299,20 @@ class Executor:
     def _materialize(self, q: Query, rows) -> pd.DataFrame:
         """Fallback for cyclic join graphs: hash-join along a spanning tree, then apply the
         cycle-closing predicates. Frame columns are per-alias row indices."""
+        # refuse before materialising: |first| x max key frequency of every table joined in
+        # bounds the spanning-tree join that the merges below would build
+        first = next(iter(q.rels))
+        placed, bound = {first}, float(max(len(rows[first]), 1))
+        for j in q.joins:
+            for have, new in ((j.a, j.b), (j.b, j.a)):
+                if have in placed and new not in placed:
+                    keys = self._key(q, new, j.other(have)[2], rows[new])
+                    deg = int(pd.Series(keys).value_counts().max()) if len(keys) else 0
+                    bound *= max(deg, 1)
+                    placed.add(new)
+        if bound > CYCLIC_ROW_GUARD:
+            raise SQLError(f"cyclic join could produce up to {bound:,.0f} intermediate rows; "
+                           f"the in-memory fallback is limited to {CYCLIC_ROW_GUARD:,}")
         frames = {a: pd.DataFrame({a: r}) for a, r in rows.items()}
         cur = frames[next(iter(q.rels))]
         placed = {next(iter(q.rels))}
@@ -285,6 +328,7 @@ class Executor:
             nf = frames[new].assign(_k=self._key(q, new, ncol, frames[new][new].to_numpy()))
             cur = cur.merge(nf, on="_k").drop(columns="_k")
             placed.add(new)
+            self._tick()
             if len(cur) > CYCLIC_ROW_GUARD:
                 raise SQLError("cyclic join too large for the in-memory fallback")
         for a in q.rels:

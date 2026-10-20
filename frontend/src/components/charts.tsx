@@ -47,8 +47,11 @@ export function GroupedLogBars({ groups, series, value, height = 260, fmt = fmtQ
   groups: string[]; series: string[]; value: (g: string, s: string) => number; height?: number; fmt?: (v: number) => string
 }) {
   const { show, hide, node } = useTip()
-  const W = 640, pad = { l: 44, r: 8, t: 22, b: 30 }
   const vals = groups.flatMap(g => series.map(s => value(g, s)))
+  const W = 640, gw0 = (W - 52) / groups.length
+  // every bar carries its value: horizontal when there is room, rotated otherwise
+  const upright = gw0 > 90 && series.length <= 4
+  const pad = { l: 44, r: 8, t: upright ? 22 : 46, b: 30 }
   const top = Math.max(1, Math.ceil(Math.log10(Math.max(...vals, 2))))
   const gw = (W - pad.l - pad.r) / groups.length
   const bw = Math.min(26, (gw - 18) / series.length - 2)
@@ -71,7 +74,9 @@ export function GroupedLogBars({ groups, series, value, height = 260, fmt = fmtQ
                   <g key={s} onMouseMove={e => show(e, <><b>{EST_LABEL[s]}</b><br />{g}: {fmt(v)}</>)} onMouseLeave={hide}>
                     <rect x={x - 1} y={pad.t} width={bw + 2} height={height - pad.t - pad.b} fill="transparent" />
                     <path d={roundTop(x, height - pad.b - h, bw, h)} fill={EST_COLOR[s]} />
-                    {gw > 90 && series.length <= 4 && <text x={x + bw / 2} y={height - pad.b - h - 4} textAnchor="middle" style={{ fontSize: 9.5, fill: 'var(--ink-2)' }}>{fmt(v).replace('×', '')}</text>}
+                    {upright
+                      ? <text x={x + bw / 2} y={height - pad.b - h - 4} textAnchor="middle" style={{ fontSize: 9.5, fill: 'var(--ink-2)' }}>{fmt(v).replace('×', '')}</text>
+                      : <text transform={`translate(${x + bw / 2 + 3.5},${height - pad.b - h - 4}) rotate(-90)`} style={{ fontSize: 10, fill: 'var(--ink-2)' }}>{fmt(v).replace('×', '')}</text>}
                   </g>
                 )
               })}
@@ -82,6 +87,15 @@ export function GroupedLogBars({ groups, series, value, height = 260, fmt = fmtQ
         <line className="axis" x1={pad.l} x2={W - pad.r} y1={height - pad.b} y2={height - pad.b} />
       </svg>
       {node}
+      <details className="chart-table">
+        <summary>Show as table</summary>
+        <div className="scroll-x">
+          <table className="tbl">
+            <thead><tr><th scope="col">Estimator</th>{groups.map(g => <th key={g} scope="col" className="r num">{g}</th>)}</tr></thead>
+            <tbody>{series.map(s => <tr key={s}><th scope="row">{EST_LABEL[s]}</th>{groups.map(g => <td key={g} className="r num">{fmt(value(g, s))}</td>)}</tr>)}</tbody>
+          </table>
+        </div>
+      </details>
     </div>
   )
 }

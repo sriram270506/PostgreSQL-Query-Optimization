@@ -3,8 +3,9 @@ Load a dataset into PostgreSQL, index its join keys and ANALYZE.
 Run once after `docker compose up -d`.
 
 Usage:
-  python -m scripts.init_postgres                    # HR schema  -> database carddb
-  python -m scripts.init_postgres --dataset stats    # STATS      -> database stats
+  python -m scripts.init_postgres --yes                    # HR schema  -> database carddb
+  python -m scripts.init_postgres --dataset stats --yes    # STATS      -> database stats
+Reads PG_DSN from .env; refuses non-localhost servers unless --allow-remote.
 """
 import argparse
 import os
@@ -12,6 +13,9 @@ import sys
 import pandas as pd
 
 from src.engine import datasets
+from src.env import load_dotenv
+
+load_dotenv()
 
 try:
     import psycopg2
@@ -126,10 +130,20 @@ def load_stats(dsn: str):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dsn", default=os.environ.get("PG_DSN", "postgresql://postgres:postgres@127.0.0.1:55432/carddb"))
+    parser.add_argument("--dsn", default=os.environ.get("PG_DSN"), help="defaults to PG_DSN from the environment / .env")
     parser.add_argument("--csv-dir", default=CSV_DIR)
     parser.add_argument("--dataset", default="hr", choices=["hr", "stats"])
+    parser.add_argument("--yes", action="store_true", help="confirm dropping/truncating the dataset's tables")
+    parser.add_argument("--allow-remote", action="store_true", help="allow a non-localhost server")
     args = parser.parse_args()
+    if not args.dsn:
+        sys.exit("No DSN: set PG_DSN in .env (see .env.example) or pass --dsn")
+    from psycopg2.extensions import parse_dsn
+    host = parse_dsn(args.dsn).get("host", "localhost")
+    if host not in ("localhost", "127.0.0.1", "::1") and not args.allow_remote:
+        sys.exit(f"Refusing to initialise non-local server {host!r}; pass --allow-remote if you really mean it")
+    if not args.yes:
+        sys.exit(f"This DROPS/TRUNCATES the {args.dataset} tables on {host}. Re-run with --yes to confirm.")
 
     print("Connecting to:", args.dsn.split("@")[-1])
     if args.dataset == "stats":

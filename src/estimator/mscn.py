@@ -125,7 +125,8 @@ def train(cfg: Dict, data: MSCNData, tr_idx, va_idx, dims, max_epochs=100, patie
     rng = np.random.default_rng(seed)
     model = SetConv(*dims, cfg["hidden"])
     opt = torch.optim.AdamW(model.parameters(), lr=cfg["lr"], weight_decay=cfg["weight_decay"])
-    loss_fn = nn.HuberLoss() if cfg.get("loss") == "huber" else nn.MSELoss()
+    from .neural import make_loss, val_score
+    loss_fn = make_loss(cfg)
     best, best_state, bad, hist = math.inf, None, 0, []
     for ep in range(max_epochs):
         model.train()
@@ -140,7 +141,7 @@ def train(cfg: Dict, data: MSCNData, tr_idx, va_idx, dims, max_epochs=100, patie
             opt.step()
             tot += loss.item() * len(b["y"])
         pv = predict(model, data, va_idx)
-        val = float(np.abs(np.log(np.maximum(np.expm1(pv), 1)) - np.log(np.maximum(data.y[va_idx], 1))).mean())
+        val = val_score(np.abs(np.log(np.maximum(np.expm1(pv), 1)) - np.log(np.maximum(data.y[va_idx], 1))), cfg)
         hist.append({"epoch": ep, "train_loss": tot / len(perm), "val_mean_log_q": val})
         if report:
             report(ep, val)

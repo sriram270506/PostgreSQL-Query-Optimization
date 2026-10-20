@@ -15,11 +15,19 @@ Sections
   latency      single-query estimate latency (guarded) vs exact execution
   properties   order invariance, monotonicity under an added filter, bound violations
   guards       how often the uncertainty fallback and the upper-bound clamp fire
+  breakdown    error by table count, join shape, predicate type and true-count bucket
+  special      never-trained evaluation sets: empty/tiny results and rare/absent literals
+  compare      matched comparisons (paired bootstrap CI of the difference in mean log Q-error
+               and p95, per slice and per OOD split, plus per-seed agreement); a difference
+               whose CI contains 0 is reported as inconclusive
+  calibration  does ensemble disagreement predict error on test? (Spearman, coverage curve)
+  provenance   commit, data/model hashes, split definitions, seeds, hardware, PG settings
 """
 import argparse
 import json
 import os
 import random
+import sys
 import time
 from typing import Dict, List
 
@@ -31,7 +39,10 @@ from src.engine import Join, Pred, Query, optimizer
 from src.engine.live_pg import LivePG, dsn_for
 from src.estimator.service import LABELS, Estimators, qerror
 
-PG_DSN = os.environ.get("PG_DSN", "postgresql://postgres:postgres@127.0.0.1:55432/carddb")
+from src.env import load_dotenv
+
+load_dotenv()
+PG_DSN = os.environ.get("PG_DSN")  # no default credentials: set it in .env
 CORRELATED = {"hr": {"employees.city", "employees.dept_id", "employees.age", "employees.salary",
                      "employees.experience_years", "projects.budget_tier", "projects.dept_id",
                      "departments.dept_name", "departments.region", "locations.city", "locations.office_tier"}}
@@ -44,6 +55,168 @@ def summary(q: np.ndarray) -> dict:
             "p90": float(np.percentile(q, 90)), "p95": float(np.percentile(q, 95)),
             "p99": float(np.percentile(q, 99)), "max": float(q.max()),
             "within_2x": float((q <= 2).mean()), "within_10x": float((q <= 10).mean())}
+
+
+def logq(est, true) -> np.ndarray:
+    return np.abs(np.log(np.maximum(est, 1)) - np.log(np.maximum(true, 1)))
+
+
+PAIRS = (("treelstm", "mlp"), ("treelstm", "factorjoin"), ("mlp", "factorjoin"), ("treelstm", "mscn"),
+         ("treelstm", "postgres_live"))
+
+
+def paired_diff(la: np.ndarray, lb: np.ndarray, B: int = 1000, seed: int = 0) -> dict:
+    """Bootstrap CI of (a - b) in mean log Q-error and in p95 log Q-error, resampling
+    queries jointly (each query keeps its pair). Negative = a is better."""
+    if len(la) < 10:
+        return {"n": int(len(la)), "verdict": "too few queries"}
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, len(la), size=(B, len(la)))
+    dm = (la[idx] - lb[idx]).mean(1)
+    dp = np.percentile(la[idx], 95, axis=1) - np.percentile(lb[idx], 95, axis=1)
+    ci_m = [float(np.percentile(dm, 2.5)), float(np.percentile(dm, 97.5))]
+    ci_p = [float(np.percentile(dp, 2.5)), float(np.percentile(dp, 97.5))]
+    verdict = "a better" if ci_m[1] < 0 else "b better" if ci_m[0] > 0 else "inconclusive"
+    return {"n": int(len(la)), "mean_log_q_diff": float((la - lb).mean()), "ci95_mean": ci_m,
+            "p95_log_diff": float(np.percentile(la, 95) - np.percentile(lb, 95)), "ci95_p95": ci_p,
+            "verdict": verdict}
+
+
+def join_shape(q: Query) -> str:
+    if len(q.rels) == 1:
+        return "single table"
+    deg: Dict[str, int] = {}
+    for j in q.joins:
+        deg[j.a] = deg.get(j.a, 0) + 1
+        deg[j.b] = deg.get(j.b, 0) + 1
+    if len(q.joins) >= len(q.rels):
+        return "cyclic"
+    if len(q.rels) == 2 or max(deg.values()) <= 2:
+        return "chain"
+    return "star" if max(deg.values()) == len(q.rels) - 1 else "branching"
+
+
+def pred_type(q: Query) -> str:
+    kinds = {"eq" if p.op in ("eq", "in") else "range" if p.op in ("lt", "le", "gt", "ge", "between") else "not-equal"
+             for p in q.preds}
+    if not kinds:
+        return "no filter"
+    return kinds.pop() + " only" if len(kinds) == 1 else "mixed"
+
+
+def card_bucket(t: float) -> str:
+    return ("0 rows" if t == 0 else "1-10" if t <= 10 else "11-1k" if t <= 1e3 else "1k-1M" if t <= 1e6
+            else ">1M")
+
+
+def slices(qs: List[Query], true: np.ndarray) -> Dict[str, np.ndarray]:
+    dims = {"tables": [f"{len(q.rels)} table" + ("s" if len(q.rels) > 1 else "") for q in qs],
+            "join shape": [join_shape(q) for q in qs], "predicates": [pred_type(q) for q in qs],
+            "true rows": [card_bucket(t) for t in true]}
+    return {d: np.array(v) for d, v in dims.items()}
+
+
+def breakdown(qs, true, est: Dict[str, dict]) -> dict:
+    """Error per slice, so a weakness can be pinned to a kind of query."""
+    out = {}
+    for d, lab in slices(qs, true).items():
+        out[d] = {}
+        for b in sorted(set(lab)):
+            m = lab == b
+            row = {"n": int(m.sum())}
+            for n, r in est.items():
+                e = logq(r["est"][m], true[m])
+                row[n] = {"median": float(np.exp(np.median(e))), "p95": float(np.exp(np.percentile(e, 95))),
+                          "mean_log_q": float(e.mean())}
+            out[d][b] = row
+    return out
+
+
+def compare(true, est: Dict[str, dict], qs=None) -> dict:
+    """Paired comparisons overall and per slice (slices with >= 30 queries)."""
+    lq = {n: logq(r["est"], true) for n, r in est.items()}
+    out = {"overall": {f"{a} vs {b}": paired_diff(lq[a], lq[b]) for a, b in PAIRS if a in lq and b in lq}}
+    if qs is not None:
+        for d, lab in slices(qs, true).items():
+            for b_ in sorted(set(lab)):
+                m = lab == b_
+                if m.sum() >= 30:
+                    out[f"{d}: {b_}"] = {f"{a} vs {b}": paired_diff(lq[a][m], lq[b][m]) for a, b in PAIRS[:3]
+                                         if a in lq and b in lq}
+    return out
+
+
+def calibration(true, est: Dict[str, dict]) -> dict:
+    """Does ensemble disagreement rank errors on test? coverage c = error on the c most-confident share."""
+    from scipy.stats import spearmanr
+    out = {}
+    for n, r in est.items():
+        if r.get("std") is None or not np.any(r["std"] > 0):
+            continue
+        e, sd = logq(r["est"], true), r["std"]
+        order = np.argsort(sd)
+        curve = []
+        for c in (0.5, 0.7, 0.8, 0.9, 0.95, 1.0):
+            sub = e[order[:max(1, int(c * len(e)))]]
+            curve.append({"coverage": c, "mean_log_q": float(sub.mean()), "p95_q": float(np.exp(np.percentile(sub, 95)))})
+        out[n] = {"spearman_std_vs_error": float(spearmanr(sd, e).correlation),
+                  "fallback_rate": float(r["fallback"].mean()), "coverage_curve": curve}
+    return out
+
+
+def provenance(S: Estimators, pg, argv: List[str]) -> dict:
+    """Everything needed to say exactly what produced a result file."""
+    import hashlib
+    import platform
+    import subprocess
+    import sys
+
+    import torch
+
+    def sh(*a):
+        try:
+            return subprocess.run(a, capture_output=True, text=True, timeout=20).stdout.strip()
+        except Exception:
+            return None
+
+    def fhash(path):
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()[:16]
+
+    ds = S.ds
+    models = {}
+    for root, _, files in os.walk(ds.models_dir):
+        for f in files:
+            if f.endswith(".pt"):
+                rel = os.path.relpath(os.path.join(root, f), ds.models_dir).replace(os.sep, "/")
+                if not rel.startswith(("stats/", "stats_old/")):  # hr's models_dir contains the others
+                    models[rel] = fhash(os.path.join(root, f))
+    info = None
+    if pg:
+        try:
+            info = pg.server_info()
+        except Exception as e:
+            info = {"error": str(e).splitlines()[0]}
+    return {"git_commit": sh("git", "rev-parse", "HEAD"), "git_dirty": bool(sh("git", "status", "--porcelain", "-uno")),
+            "command": " ".join(["python"] + list(argv)), "time_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "data_hash": S.fingerprint, "workload_sha256": fhash(ds.workload),
+            "split_definitions": SPLIT_DEFS, "seed_counts": {n: len(m) for n, m in S.ensembles.items()},
+            "model_sha256": models, "model_cfgs": {n: v.get("cfg") for n, v in S.meta.items()},
+            "hardware": {"platform": platform.platform(), "processor": platform.processor(),
+                         "cpus": os.cpu_count(), "python": sys.version.split()[0], "torch": torch.__version__,
+                         "torch_threads": torch.get_num_threads()},
+            "postgres": info}
+
+
+SPLIT_DEFS = {"split": "i.i.d. random train/val/test (seeded); augmented tiny/rare rows are train-only",
+              "split_tmpl": "20% of query templates (relations + filtered columns) held out",
+              "split_shape": "train/val on 1-3 tables, test on 4-5 tables",
+              "split_join": "20% of join graphs (relation set + join edges) held out",
+              "split_sel": "train/val on the middle of the cardinality range, test on the bottom and top 7.5%",
+              "special": "never-trained eval_tiny (0-10 rows) and eval_rare (rarest/absent literals) sets"}
 
 
 def bootstrap_ci(q: np.ndarray, B: int = 1000, seed: int = 0) -> dict:
@@ -100,19 +273,27 @@ class Bench:
                 res[n][k] = summary(qe[m])
         return res
 
-    def seeds(self, qs, true) -> dict:
-        out = {}
+    def seeds(self, qs, true, est: Dict[str, dict] = None) -> dict:
+        out, mean_lq = {}, {}
         for n, members in self.S.ensembles.items():
-            per = []
+            per, lqs = [], []
             for m, b in members:
                 one = Estimators.__new__(Estimators)
                 one.__dict__.update(self.S.__dict__)
                 one.ensembles = {n: [(m, b)]}
                 r = one.estimate_many(qs, n, guard=False)
                 per.append(summary(qerror(r["est"], true)))
+                lqs.append(float(logq(r["est"], true).mean()))
             out[n] = {k: {"mean": float(np.mean([p[k] for p in per])), "std": float(np.std([p[k] for p in per]))}
                       for k in ("median", "p95", "p99", "max", "within_2x")}
             out[n]["n_seeds"] = len(per)
+            mean_lq[n] = np.array(lqs)
+        for n in ("factorjoin", "postgres_live"):  # deterministic baselines count as one "seed"
+            if est and n in est:
+                mean_lq[n] = np.array([float(logq(est[n]["est"], true).mean())])
+        # per-seed agreement: share of (seed of a, seed of b) pairs in which a has the lower mean log Q-error
+        out["agreement"] = {f"{a} vs {b}": float((mean_lq[a][:, None] < mean_lq[b][None, :]).mean())
+                            for a, b in PAIRS if a in mean_lq and b in mean_lq}
         return out
 
     @staticmethod
@@ -248,9 +429,12 @@ def run(ds_name: str, quick: bool = False) -> dict:
     if not quick:  # same 300-query subsample CI re-runs, so the regression gate compares like with like
         sub = test.sample(n=min(300, len(test)), random_state=0).index.to_numpy()
         out["quick_accuracy"] = B.accuracy([qs[i] for i in sub], true[sub],
-                                           {n: {k: v[sub] for k, v in r.items()} for n, r in est.items()})
+                                           {n: {k: (v[sub] if isinstance(v, np.ndarray) else v) for k, v in r.items()} for n, r in est.items()})
     out["significance"] = B.significance(true, est)
-    out["seeds"] = B.seeds(qs, true)
+    out["seeds"] = B.seeds(qs, true, est)
+    out["breakdown"] = breakdown(qs, true, est)
+    out["compare"] = compare(true, est, qs)
+    out["calibration"] = calibration(true, est)
     out["scatter"] = {"true": true.tolist(), "category": test.category.tolist(),
                       **{n: r["est"].tolist() for n, r in est.items()}}
     for n, r in out["accuracy"].items():
@@ -268,8 +452,23 @@ def run(ds_name: str, quick: bool = False) -> dict:
         if not quick:
             out["ceb"]["plans"] = B.plans(cq, max_rels=7)
 
+    special = df[df.split == "special"].reset_index(drop=True)
+    if len(special):
+        out["special"] = {}
+        for kind, label in (("eval_tiny", "empty / tiny results (0-10 rows)"),
+                            ("eval_rare", "rare or absent literal values")):
+            t = special[special.aug == kind].reset_index(drop=True)
+            if quick:
+                t = t.sample(n=min(150, len(t)), random_state=0).reset_index(drop=True)
+            sq = [S.engine.parse(x) for x in t.sql]
+            print(f"[{ds_name}] special {kind}: {len(sq)} queries", flush=True)
+            se = B.estimates(sq)
+            st = t.true_count.to_numpy(float)
+            out["special"][kind] = {"label": label, "n": len(sq), "accuracy": B.accuracy(sq, st, se),
+                                    "compare": compare(st, se)["overall"]}
+
     out["ood"] = {}
-    for split in ("split_tmpl", "split_shape"):
+    for split in ("split_tmpl", "split_shape", "split_join", "split_sel"):
         So = Estimators(ds_name, split=split)
         if not So.ensembles:
             continue
@@ -279,7 +478,9 @@ def run(ds_name: str, quick: bool = False) -> dict:
         oq = [S.engine.parse(s) for s in t.sql]
         print(f"[{ds_name}] OOD {split}: {len(oq)} queries", flush=True)
         oe = B.estimates(oq, So)
-        out["ood"][split] = {"n": len(oq), "accuracy": B.accuracy(oq, t.true_count.to_numpy(float), oe)}
+        ot = t.true_count.to_numpy(float)
+        out["ood"][split] = {"n": len(oq), "definition": SPLIT_DEFS[split], "accuracy": B.accuracy(oq, ot, oe),
+                             "compare": compare(ot, oe)["overall"], "breakdown": breakdown(oq, ot, oe)}
 
     if ds_name == "stats" and os.path.isdir("models/stats_old/split"):
         print("[stats] drift", flush=True)
@@ -309,6 +510,7 @@ def run(ds_name: str, quick: bool = False) -> dict:
                       "tune_seconds": t.get("tune_seconds"), "importance": t.get("importance", {})}
     out["tuning"] = tun
     out["ensemble"] = S.meta
+    out["provenance"] = provenance(S, B.pg, sys.argv)
     return out
 
 

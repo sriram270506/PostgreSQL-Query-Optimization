@@ -28,6 +28,10 @@ def _connected(q: Query, s: FrozenSet[str]) -> bool:
     return seen == set(s)
 
 
+def is_connected(q: Query) -> bool:
+    return len(q.rels) <= 1 or _connected(q, frozenset(q.rels))
+
+
 def connected_subsets(q: Query) -> List[FrozenSet[str]]:
     rels = list(q.rels)
     return [frozenset(c) for k in range(2, len(rels) + 1)

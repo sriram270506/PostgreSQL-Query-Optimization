@@ -9,6 +9,9 @@ import sys
 import pandas as pd
 import pytest
 
+# the API's per-client rate limit would throttle the test suite itself
+os.environ.setdefault("CARDLAB_RATE_PER_MIN", "1000000")
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
@@ -55,3 +58,19 @@ requires_stats = pytest.mark.skipif(
 def stats_engine():
     from src.engine import Engine
     return Engine("stats")
+
+
+# CI_REQUIRE_ALL=1 (the nightly job): a skipped test is a failure, so a missing database,
+# dataset or model can never turn a red run green by silently skipping
+_skipped = []
+
+
+def pytest_runtest_logreport(report):
+    if report.skipped:
+        _skipped.append(report.nodeid)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    if os.environ.get("CI_REQUIRE_ALL") == "1" and _skipped:
+        print(f"\nCI_REQUIRE_ALL: {len(_skipped)} test(s) skipped:\n  " + "\n  ".join(_skipped))
+        session.exitstatus = 1
