@@ -72,6 +72,14 @@ class LivePG:
         return float(node["Plan Rows"])
 
     # ── extended statistics ─────────────────────────────────────────────────
+    def _maintenance(self, sql: str):
+        """ANALYZE and friends legitimately take longer than the per-query timeout."""
+        self.cur.execute("SET statement_timeout = 0")
+        try:
+            self.cur.execute(sql)
+        finally:
+            self.cur.execute(f"SET statement_timeout = {STATEMENT_TIMEOUT_MS}")
+
     def create_extended_stats(self, ds: Dataset):
         for t, cols in ds.filters.items():
             if len(cols) < 2:
@@ -79,12 +87,12 @@ class LivePG:
             self.cur.execute(f"DROP STATISTICS IF EXISTS xst_{t}")
             self.cur.execute(f"CREATE STATISTICS xst_{t} (ndistinct, dependencies, mcv) ON "
                              f"{', '.join(cols[:8])} FROM {t}")
-        self.cur.execute("ANALYZE")
+        self._maintenance("ANALYZE")
 
     def drop_extended_stats(self, ds: Dataset):
         for t in ds.filters:
             self.cur.execute(f"DROP STATISTICS IF EXISTS xst_{t}")
-        self.cur.execute("ANALYZE")
+        self._maintenance("ANALYZE")
 
     # ── hinted execution (pg_hint_plan) ─────────────────────────────────────
     def run_hinted(self, sql: str, rows: Optional[Dict[Tuple[str, ...], float]],

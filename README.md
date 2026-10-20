@@ -41,85 +41,232 @@ by `python -m scripts.report`. Q-error = max(est/true, true/est), 1× = exact.
 
 ### STATS (real Stack Exchange data)
 
-1,201 held-out test queries (5,598 train / 1,201 val).
+1,201 held-out test queries (5,898 train / 1,201 val). Produced by commit `55d7ea2fcc` (dirty tree), data `298197cd790988b4`, workload `9b35fb22fd4a0b72`.
 
 | Estimator | Median | p95 | p99 (95% CI) | Max | ≤2× |
 |---|---|---|---|---|---|
-| PostgreSQL 16 | 1.84× | 357× | **38,109×** (12,234×–151,059×) | 49,192,339× | 51.5% |
-| PostgreSQL 16 + CREATE STATISTICS | 1.85× | 356× | **38,109×** (12,234×–150,724×) | 52,836,216× | 51.5% |
+| PostgreSQL 16 | 1.85× | 354× | **28,582×** (12,234×–159,540×) | 56,312,283× | 51.9% |
+| PostgreSQL 16 + CREATE STATISTICS | 1.86× | 375× | **38,109×** (12,234×–153,050×) | 51,563,054× | 51.5% |
 | FactorJoin (Chow-Liu BN) | 1.41× | 30.20× | **955×** (238×–4,532×) | 10,137,790× | 65.4% |
-| MSCN (baseline) | 1.77× | 106× | **14,940×** (3,709×–86,088×) | 3,374,839× | 55.2% |
-| Fusion MLP | 1.20× | 13.90× | **836×** (154×–3,610×) | 207,000× | 75.5% |
-| TreeLSTM + MLP | 1.11× | 5.40× | **92.54×** (35.26×–417×) | 6,924× | 83.8% |
+| MSCN (baseline) | 1.62× | 33.74× | **955×** (238×–5,077×) | 10,137,790× | 62.3% |
+| Fusion MLP | 1.23× | 14.88× | **238×** (102×–762×) | 254,993× | 72.8% |
+| TreeLSTM + MLP | 1.11× | 6.67× | **111×** (45.95×–1,595×) | 20,931× | 83.4% |
 
 **Official STATS-CEB workload (146 queries):**
 
 | Estimator | Median | p95 | p99 (95% CI) | Max | ≤2× |
 |---|---|---|---|---|---|
-| PostgreSQL 16 | 18.79× | 15,533× | **503,794×** (36,985×–904,501×) | 904,501× | 19.9% |
-| PostgreSQL 16 + CREATE STATISTICS | 18.88× | 16,016× | **463,060×** (37,218×–961,930×) | 961,930× | 19.9% |
+| PostgreSQL 16 | 18.78× | 15,409× | **492,346×** (37,362×–993,468×) | 993,468× | 19.9% |
+| PostgreSQL 16 + CREATE STATISTICS | 19.19× | 15,531× | **452,231×** (33,912×–865,737×) | 865,737× | 19.9% |
 | FactorJoin (Chow-Liu BN) | 6.56× | 5,573× | **66,450×** (7,555×–10,105,126×) | 10,105,126× | 26.0% |
-| MSCN (baseline) | 7.00× | 722× | **13,417×** (883×–26,658×) | 26,658× | 24.0% |
-| Fusion MLP | 3.22× | 1,722× | **20,560×** (2,304×–4,783,604×) | 4,783,604× | 35.6% |
-| TreeLSTM + MLP | 2.16× | 193× | **1,580×** (398×–7,213×) | 7,213× | 47.3% |
+| MSCN (baseline) | 7.41× | 6,269× | **66,450×** (10,001×–10,105,126×) | 10,105,126× | 18.5% |
+| Fusion MLP | 3.68× | 1,071× | **9,264×** (1,334×–28,235×) | 28,235× | 27.4% |
+| TreeLSTM + MLP | 2.04× | 1,153× | **45,589×** (1,745×–10,105,126×) | 10,105,126× | 49.3% |
 
 Paired Wilcoxon signed-rank tests on per-query log Q-error:
 
 | A vs B | mean log-Q A / B | A closer / B closer | p-value |
 |---|---|---|---|
-| TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | 0.405 / 0.883 | 61% / 38% | 2.4e-63 |
-| Fusion MLP vs FactorJoin (Chow-Liu BN) | 0.645 / 0.883 | 53% / 45% | 2.6e-24 |
-| TreeLSTM + MLP vs Fusion MLP | 0.405 / 0.645 | 63% / 36% | 2e-32 |
-| FactorJoin (Chow-Liu BN) vs PostgreSQL 16 | 0.883 / 1.589 | 66% / 33% | 1.9e-26 |
-| FactorJoin (Chow-Liu BN) vs PostgreSQL 16 + CREATE STATISTICS | 0.883 / 1.589 | 66% / 33% | 8.8e-27 |
+| TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | 0.429 / 0.883 | 60% / 37% | 1.1e-60 |
+| Fusion MLP vs FactorJoin (Chow-Liu BN) | 0.662 / 0.883 | 52% / 47% | 2.1e-17 |
+| TreeLSTM + MLP vs Fusion MLP | 0.429 / 0.662 | 70% / 29% | 1.1e-46 |
+| FactorJoin (Chow-Liu BN) vs PostgreSQL 16 | 0.883 / 1.585 | 66% / 33% | 4.7e-26 |
+| FactorJoin (Chow-Liu BN) vs PostgreSQL 16 + CREATE STATISTICS | 0.883 / 1.588 | 66% / 33% | 7.2e-26 |
 
 Seed spread (each learned model trained with independent seeds):
 
 | Model | seeds | median | p95 | p99 |
 |---|---|---|---|---|
-| MSCN (baseline) | 5 | 2.206 ± 0.132 | 315.52 ± 133.65 | 41045.3 ± 27281.6 |
-| Fusion MLP | 5 | 1.207 ± 0.011 | 15.69 ± 0.66 | 892.1 ± 267.5 |
-| TreeLSTM + MLP | 5 | 1.132 ± 0.010 | 6.25 ± 0.45 | 118.7 ± 21.2 |
+| MSCN (baseline) | 5 | 2.593 ± 0.132 | 192.80 ± 35.15 | 6200.2 ± 2901.6 |
+| Fusion MLP | 5 | 1.254 ± 0.025 | 16.48 ± 1.55 | 299.3 ± 111.0 |
+| TreeLSTM + MLP | 5 | 1.126 ± 0.005 | 6.58 ± 0.44 | 90.9 ± 11.7 |
 
 **Out of distribution: Unseen query templates** (1,485 queries, models retrained without them)
 
 | Estimator | Median | p95 | p99 (95% CI) | Max | ≤2× |
 |---|---|---|---|---|---|
-| PostgreSQL 16 | 1.89× | 421× | **162,217×** | 107,902,772× | 51.9% |
-| PostgreSQL 16 + CREATE STATISTICS | 1.85× | 406× | **182,094×** | 130,734,044× | 52.5% |
+| PostgreSQL 16 | 1.87× | 436× | **172,335×** | 127,702,879× | 52.3% |
+| PostgreSQL 16 + CREATE STATISTICS | 1.90× | 426× | **166,842×** | 96,187,484× | 51.3% |
 | FactorJoin (Chow-Liu BN) | 1.53× | 28.01× | **617×** | 25,323,511× | 62.5% |
-| MSCN (baseline) | 2.08× | 164× | **10,428×** | 23,521,082× | 48.4% |
-| Fusion MLP | 1.22× | 14.84× | **350×** | 25,712,028× | 73.6% |
-| TreeLSTM + MLP | 1.14× | 6.22× | **52.20×** | 1,006,490× | 83.0% |
+| MSCN (baseline) | 1.97× | 43.55× | **939×** | 25,323,511× | 50.6% |
+| Fusion MLP | 1.28× | 13.28× | **276×** | 13,130,840× | 70.0% |
+| TreeLSTM + MLP | 1.13× | 6.07× | **58.43×** | 506,925× | 83.6% |
+
+Matched: TreeLSTM + MLP vs Fusion MLP: -0.277 [-0.317, -0.239] (TreeLSTM + MLP better); TreeLSTM + MLP vs FactorJoin (Chow-Liu BN): -0.518 [-0.578, -0.464] (TreeLSTM + MLP better); Fusion MLP vs FactorJoin (Chow-Liu BN): -0.240 [-0.283, -0.198] (Fusion MLP better); TreeLSTM + MLP vs MSCN (baseline): -0.720 [-0.787, -0.658] (TreeLSTM + MLP better); TreeLSTM + MLP vs PostgreSQL 16: -1.205 [-1.324, -1.095] (TreeLSTM + MLP better)
 
 **Out of distribution: Unseen join sizes (train 1–3 tables, test 4–5)** (1,712 queries, models retrained without them)
 
 | Estimator | Median | p95 | p99 (95% CI) | Max | ≤2× |
 |---|---|---|---|---|---|
-| PostgreSQL 16 | 13.21× | 41,091× | **11,879,518×** | 245,863,658× | 18.3% |
-| PostgreSQL 16 + CREATE STATISTICS | 12.77× | 39,622× | **13,447,962×** | 288,885,153× | 19.0% |
+| PostgreSQL 16 | 13.22× | 39,189× | **11,467,673×** | 285,853,253× | 19.0% |
+| PostgreSQL 16 + CREATE STATISTICS | 11.62× | 39,231× | **13,649,444×** | 365,372,469× | 19.2% |
 | FactorJoin (Chow-Liu BN) | 4.04× | 274× | **81,652×** | 25,323,511× | 31.9% |
-| MSCN (baseline) | 9.53× | 10,821× | **264,090×** | 11,246,309× | 20.7% |
-| Fusion MLP | 2.43× | 197× | **94,819×** | 59,451,928× | 41.8% |
-| TreeLSTM + MLP | 1.80× | 64.63× | **6,788×** | 3,295,149× | 55.0% |
+| MSCN (baseline) | 4.47× | 865× | **68,566×** | 25,323,511× | 30.1% |
+| Fusion MLP | 3.04× | 154× | **23,217×** | 14,638,680× | 33.4% |
+| TreeLSTM + MLP | 1.73× | 59.96× | **8,125×** | 4,340,978× | 56.5% |
+
+Matched: TreeLSTM + MLP vs Fusion MLP: -0.523 [-0.578, -0.469] (TreeLSTM + MLP better); TreeLSTM + MLP vs FactorJoin (Chow-Liu BN): -0.778 [-0.839, -0.715] (TreeLSTM + MLP better); Fusion MLP vs FactorJoin (Chow-Liu BN): -0.255 [-0.307, -0.201] (Fusion MLP better); TreeLSTM + MLP vs MSCN (baseline): -1.031 [-1.115, -0.941] (TreeLSTM + MLP better); TreeLSTM + MLP vs PostgreSQL 16: -2.457 [-2.624, -2.296] (TreeLSTM + MLP better)
+
+**Out of distribution: Unseen join graphs** (963 queries, models retrained without them)
+
+| Estimator | Median | p95 | p99 (95% CI) | Max | ≤2× |
+|---|---|---|---|---|---|
+| PostgreSQL 16 | 4.83× | 2,546× | **84,233×** | 303,751,071× | 31.9% |
+| PostgreSQL 16 + CREATE STATISTICS | 4.85× | 2,520× | **86,102×** | 289,283,937× | 32.3% |
+| FactorJoin (Chow-Liu BN) | 2.20× | 45.33× | **5,663×** | 21,306,067× | 46.2% |
+| MSCN (baseline) | 2.39× | 92.23× | **5,478×** | 21,306,067× | 43.5% |
+| Fusion MLP | 1.72× | 23.10× | **6,034×** | 21,440,671× | 56.2% |
+| TreeLSTM + MLP | 1.34× | 12.20× | **393×** | 1,027,752× | 72.8% |
+
+Matched: TreeLSTM + MLP vs Fusion MLP: -0.376 [-0.448, -0.311] (TreeLSTM + MLP better); TreeLSTM + MLP vs FactorJoin (Chow-Liu BN): -0.665 [-0.754, -0.580] (TreeLSTM + MLP better); Fusion MLP vs FactorJoin (Chow-Liu BN): -0.289 [-0.359, -0.221] (Fusion MLP better); TreeLSTM + MLP vs MSCN (baseline): -0.778 [-0.877, -0.683] (TreeLSTM + MLP better); TreeLSTM + MLP vs PostgreSQL 16: -1.684 [-1.846, -1.535] (TreeLSTM + MLP better)
+
+**Out of distribution: Unseen cardinality range (both tails held out)** (1,201 queries, models retrained without them)
+
+| Estimator | Median | p95 | p99 (95% CI) | Max | ≤2× |
+|---|---|---|---|---|---|
+| PostgreSQL 16 | 16.52× | 133,643× | **51,899,093×** | 2,900,042,284× | 19.7% |
+| PostgreSQL 16 + CREATE STATISTICS | 16.75× | 130,841× | **49,050,214×** | 2,494,739,574× | 19.2% |
+| FactorJoin (Chow-Liu BN) | 1.47× | 357× | **133,785×** | 23,710,665× | 59.6% |
+| MSCN (baseline) | 158× | 213,970× | **2,231,481×** | 117,532,316× | 5.7% |
+| Fusion MLP | 6.27× | 8,411× | **670,023×** | 124,391,052× | 28.8% |
+| TreeLSTM + MLP | 2.54× | 79,851× | **2,806,298,872×** | 414,309,687,620,160× | 44.5% |
+
+Matched: TreeLSTM + MLP vs Fusion MLP: -0.315 [-0.536, -0.080] (TreeLSTM + MLP better); TreeLSTM + MLP vs FactorJoin (Chow-Liu BN): +1.185 [+0.970, +1.408] (FactorJoin (Chow-Liu BN) better); Fusion MLP vs FactorJoin (Chow-Liu BN): +1.500 [+1.361, +1.624] (FactorJoin (Chow-Liu BN) better); TreeLSTM + MLP vs MSCN (baseline): -2.802 [-3.034, -2.568] (TreeLSTM + MLP better); TreeLSTM + MLP vs PostgreSQL 16: -1.289 [-1.566, -0.989] (TreeLSTM + MLP better)
+
+**Never-trained set: empty / tiny results (0-10 rows)** (300 queries)
+
+| Estimator | Median | p95 | p99 (95% CI) | Max | ≤2× |
+|---|---|---|---|---|---|
+| PostgreSQL 16 | 85.00× | 5,212,965× | **425,772,803×** | 470,404,767,714× | 22.3% |
+| PostgreSQL 16 + CREATE STATISTICS | 82.50× | 4,556,634× | **362,763,720×** | 411,804,143,814× | 23.0% |
+| FactorJoin (Chow-Liu BN) | 2.03× | 33,232× | **37,498,742×** | 141,788,172× | 50.0% |
+| MSCN (baseline) | 2.72× | 39,976× | **37,498,742×** | 141,788,172× | 47.3% |
+| Fusion MLP | 1.00× | 4,944× | **243,133×** | 80,805,359× | 53.7% |
+| TreeLSTM + MLP | 1.00× | 14,598× | **2,213,869×** | 141,788,172× | 66.0% |
+
+**Never-trained set: rare or absent literal values** (300 queries)
+
+| Estimator | Median | p95 | p99 (95% CI) | Max | ≤2× |
+|---|---|---|---|---|---|
+| PostgreSQL 16 | 1.00× | 1,192× | **66,307×** | 5,759,099× | 59.7% |
+| PostgreSQL 16 + CREATE STATISTICS | 1.00× | 1,336× | **60,697×** | 6,290,304× | 60.7% |
+| FactorJoin (Chow-Liu BN) | 1.00× | 26.69× | **3,477×** | 74,096× | 85.7% |
+| MSCN (baseline) | 1.00× | 26.60× | **6,696×** | 74,096× | 77.0% |
+| Fusion MLP | 1.00× | 17.77× | **264×** | 8,026× | 87.7% |
+| TreeLSTM + MLP | 1.00× | 15.88× | **3,336×** | 74,096× | 89.3% |
+
+**Matched comparisons** (paired bootstrap 95% CI of the difference in mean log Q-error; negative = first is better; CI containing 0 = inconclusive):
+
+| Queries | Pair | Δ mean log-q [95% CI] | verdict |
+|---|---|---|---|
+| overall | TreeLSTM + MLP vs Fusion MLP | -0.233 [-0.275, -0.192] | TreeLSTM + MLP better |
+| overall | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | -0.454 [-0.510, -0.398] | TreeLSTM + MLP better |
+| overall | Fusion MLP vs FactorJoin (Chow-Liu BN) | -0.221 [-0.274, -0.170] | Fusion MLP better |
+| overall | TreeLSTM + MLP vs MSCN (baseline) | -0.532 [-0.592, -0.475] | TreeLSTM + MLP better |
+| overall | TreeLSTM + MLP vs PostgreSQL 16 | -1.157 [-1.275, -1.033] | TreeLSTM + MLP better |
+| tables: 1 table | TreeLSTM + MLP vs Fusion MLP | -0.014 [-0.018, -0.009] | TreeLSTM + MLP better |
+| tables: 1 table | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | +0.015 [+0.008, +0.023] | FactorJoin (Chow-Liu BN) better |
+| tables: 1 table | Fusion MLP vs FactorJoin (Chow-Liu BN) | +0.029 [+0.023, +0.035] | FactorJoin (Chow-Liu BN) better |
+| tables: 2 tables | TreeLSTM + MLP vs Fusion MLP | -0.148 [-0.189, -0.110] | TreeLSTM + MLP better |
+| tables: 2 tables | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | -0.334 [-0.404, -0.275] | TreeLSTM + MLP better |
+| tables: 2 tables | Fusion MLP vs FactorJoin (Chow-Liu BN) | -0.187 [-0.239, -0.138] | Fusion MLP better |
+| tables: 3 tables | TreeLSTM + MLP vs Fusion MLP | -0.309 [-0.395, -0.226] | TreeLSTM + MLP better |
+| tables: 3 tables | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | -0.601 [-0.719, -0.491] | TreeLSTM + MLP better |
+| tables: 3 tables | Fusion MLP vs FactorJoin (Chow-Liu BN) | -0.293 [-0.393, -0.199] | Fusion MLP better |
+| tables: 4 tables | TreeLSTM + MLP vs Fusion MLP | -0.380 [-0.539, -0.236] | TreeLSTM + MLP better |
+| tables: 4 tables | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | -0.759 [-0.948, -0.595] | TreeLSTM + MLP better |
+| tables: 4 tables | Fusion MLP vs FactorJoin (Chow-Liu BN) | -0.379 [-0.544, -0.211] | Fusion MLP better |
+| tables: 5 tables | TreeLSTM + MLP vs Fusion MLP | -0.666 [-1.007, -0.331] | TreeLSTM + MLP better |
+| tables: 5 tables | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | -1.171 [-1.612, -0.791] | TreeLSTM + MLP better |
+| tables: 5 tables | Fusion MLP vs FactorJoin (Chow-Liu BN) | -0.505 [-0.996, -0.037] | Fusion MLP better |
+| join shape: branching | TreeLSTM + MLP vs Fusion MLP | -0.700 [-1.120, -0.268] | TreeLSTM + MLP better |
+| join shape: branching | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | -1.144 [-1.732, -0.616] | TreeLSTM + MLP better |
+| join shape: branching | Fusion MLP vs FactorJoin (Chow-Liu BN) | -0.444 [-1.130, +0.195] | inconclusive |
+| join shape: chain | TreeLSTM + MLP vs Fusion MLP | -0.255 [-0.307, -0.202] | TreeLSTM + MLP better |
+| join shape: chain | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | -0.509 [-0.574, -0.449] | TreeLSTM + MLP better |
+| join shape: chain | Fusion MLP vs FactorJoin (Chow-Liu BN) | -0.254 [-0.311, -0.199] | Fusion MLP better |
+| join shape: single table | TreeLSTM + MLP vs Fusion MLP | -0.014 [-0.018, -0.009] | TreeLSTM + MLP better |
+| join shape: single table | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | +0.015 [+0.008, +0.023] | FactorJoin (Chow-Liu BN) better |
+| join shape: single table | Fusion MLP vs FactorJoin (Chow-Liu BN) | +0.029 [+0.023, +0.035] | FactorJoin (Chow-Liu BN) better |
+| join shape: star | TreeLSTM + MLP vs Fusion MLP | -0.348 [-0.582, -0.142] | TreeLSTM + MLP better |
+| join shape: star | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | -0.827 [-1.154, -0.518] | TreeLSTM + MLP better |
+| join shape: star | Fusion MLP vs FactorJoin (Chow-Liu BN) | -0.479 [-0.736, -0.233] | Fusion MLP better |
+| predicates: mixed | TreeLSTM + MLP vs Fusion MLP | -0.175 [-0.287, -0.070] | TreeLSTM + MLP better |
+| predicates: mixed | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | -0.510 [-0.647, -0.369] | TreeLSTM + MLP better |
+| predicates: mixed | Fusion MLP vs FactorJoin (Chow-Liu BN) | -0.335 [-0.487, -0.186] | Fusion MLP better |
+| predicates: range only | TreeLSTM + MLP vs Fusion MLP | -0.239 [-0.283, -0.194] | TreeLSTM + MLP better |
+| predicates: range only | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | -0.446 [-0.507, -0.391] | TreeLSTM + MLP better |
+| predicates: range only | Fusion MLP vs FactorJoin (Chow-Liu BN) | -0.207 [-0.265, -0.153] | Fusion MLP better |
+| true rows: 0 rows | TreeLSTM + MLP vs Fusion MLP | -0.692 [-1.260, -0.119] | TreeLSTM + MLP better |
+| true rows: 0 rows | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | -1.923 [-2.766, -1.098] | TreeLSTM + MLP better |
+| true rows: 0 rows | Fusion MLP vs FactorJoin (Chow-Liu BN) | -1.231 [-1.972, -0.616] | Fusion MLP better |
+| true rows: 11-1k | TreeLSTM + MLP vs Fusion MLP | -0.292 [-0.423, -0.189] | TreeLSTM + MLP better |
+| true rows: 11-1k | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | -0.434 [-0.570, -0.309] | TreeLSTM + MLP better |
+| true rows: 11-1k | Fusion MLP vs FactorJoin (Chow-Liu BN) | -0.142 [-0.276, +0.008] | inconclusive |
+| true rows: 1k-1M | TreeLSTM + MLP vs Fusion MLP | -0.172 [-0.218, -0.130] | TreeLSTM + MLP better |
+| true rows: 1k-1M | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | -0.405 [-0.463, -0.349] | TreeLSTM + MLP better |
+| true rows: 1k-1M | Fusion MLP vs FactorJoin (Chow-Liu BN) | -0.232 [-0.289, -0.182] | Fusion MLP better |
+| true rows: >1M | TreeLSTM + MLP vs Fusion MLP | -0.271 [-0.371, -0.188] | TreeLSTM + MLP better |
+| true rows: >1M | TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) | -0.397 [-0.490, -0.311] | TreeLSTM + MLP better |
+| true rows: >1M | Fusion MLP vs FactorJoin (Chow-Liu BN) | -0.125 [-0.229, -0.015] | Fusion MLP better |
+
+Per-seed agreement (share of seed pairs in which the first model wins): TreeLSTM + MLP vs Fusion MLP 100%, TreeLSTM + MLP vs FactorJoin (Chow-Liu BN) 100%, Fusion MLP vs FactorJoin (Chow-Liu BN) 100%, TreeLSTM + MLP vs MSCN (baseline) 100%, TreeLSTM + MLP vs PostgreSQL 16 100%
+
+**Where errors come from** (p95 Q-error per slice of the test set):
+
+| tables | n | PostgreSQL 16 | PostgreSQL 16 + CREATE STATISTICS | FactorJoin (Chow-Liu BN) | MSCN (baseline) | Fusion MLP | TreeLSTM + MLP |
+|---|---|---|---|---|---|---|---|
+| 1 table | 238 | 1.55× | 1.46× | 1.21× | 2.46× | 1.20× | 1.20× |
+| 2 tables | 399 | 23.91× | 29.52× | 5.59× | 8.47× | 5.61× | 2.32× |
+| 3 tables | 307 | 165× | 169× | 24.22× | 25.00× | 13.99× | 6.00× |
+| 4 tables | 169 | 6,096× | 5,906× | 61.45× | 104× | 45.88× | 14.47× |
+| 5 tables | 88 | 138,012× | 135,999× | 1,324× | 3,505× | 153× | 103× |
+
+| join shape | n | PostgreSQL 16 | PostgreSQL 16 + CREATE STATISTICS | FactorJoin (Chow-Liu BN) | MSCN (baseline) | Fusion MLP | TreeLSTM + MLP |
+|---|---|---|---|---|---|---|---|
+| branching | 52 | 127,381× | 127,631× | 627× | 946× | 62.64× | 46.54× |
+| chain | 828 | 243× | 229× | 29.67× | 31.57× | 13.97× | 6.68× |
+| single table | 238 | 1.55× | 1.46× | 1.21× | 2.46× | 1.20× | 1.20× |
+| star | 83 | 17,184× | 15,516× | 146× | 146× | 35.97× | 10.38× |
+
+| predicates | n | PostgreSQL 16 | PostgreSQL 16 + CREATE STATISTICS | FactorJoin (Chow-Liu BN) | MSCN (baseline) | Fusion MLP | TreeLSTM + MLP |
+|---|---|---|---|---|---|---|---|
+| eq only | 12 | 772× | 772× | 742× | 709× | 1,040× | 398× |
+| mixed | 157 | 150× | 153× | 21.95× | 30.43× | 14.48× | 7.08× |
+| no filter | 1 | 3.44× | 3.44× | 3.17× | 3.17× | 4.40× | 2.12× |
+| range only | 1,031 | 438× | 459× | 31.37× | 33.46× | 14.47× | 5.88× |
+
+| true rows | n | PostgreSQL 16 | PostgreSQL 16 + CREATE STATISTICS | FactorJoin (Chow-Liu BN) | MSCN (baseline) | Fusion MLP | TreeLSTM + MLP |
+|---|---|---|---|---|---|---|---|
+| 0 rows | 41 | 158,794× | 151,986× | 6,213× | 6,213× | 549× | 3,763× |
+| 1-10 | 12 | 407× | 401× | 585× | 585× | 737× | 105× |
+| 11-1k | 153 | 60.41× | 56.60× | 24.85× | 36.19× | 10.67× | 7.25× |
+| 1k-1M | 694 | 61.79× | 60.81× | 18.19× | 15.17× | 8.75× | 3.98× |
+| >1M | 301 | 4,057× | 3,896× | 25.24× | 36.73× | 12.92× | 7.08× |
+
+**Uncertainty calibration on test** (Spearman of seed spread vs error; p95 Q-error on the most-confident 80% / all):
+
+- MSCN (baseline): Spearman 0.07, p95 24.90× / 33.74×, fallback fired on 51.1%
+- Fusion MLP: Spearman 0.66, p95 4.71× / 14.88×, fallback fired on 0.0%
+- TreeLSTM + MLP: Spearman 0.68, p95 2.33× / 6.67×, fallback fired on 1.5%
 
 **Data drift** (models built on the 2013-06 snapshot, about half of today's rows):
 
 | Variant | Estimator | median | p95 | p99 |
 |---|---|---|---|---|
 | stale (BN + NN from 2013) | FactorJoin (Chow-Liu BN) | 9.42× | 30,502,414× | 22,506,455,809× |
-| stale (BN + NN from 2013) | MSCN (baseline) | 8.20× | 881,381× | 1,337,560,151× |
-| stale (BN + NN from 2013) | Fusion MLP | 5.29× | 30,502,414× | 22,506,455,809× |
-| stale (BN + NN from 2013) | TreeLSTM + MLP | 4.19× | 30,502,414× | 22,506,455,809× |
+| stale (BN + NN from 2013) | MSCN (baseline) | 9.18× | 23,838,224× | 15,563,350,142× |
+| stale (BN + NN from 2013) | Fusion MLP | 5.91× | 30,502,414× | 22,506,455,809× |
+| stale (BN + NN from 2013) | TreeLSTM + MLP | 4.10× | 30,502,414× | 22,506,455,809× |
 | BN refreshed, NN stale | FactorJoin (Chow-Liu BN) | 1.41× | 30.20× | 955× |
-| BN refreshed, NN stale | MSCN (baseline) | 2.82× | 337× | 82,965× |
-| BN refreshed, NN stale | Fusion MLP | 1.23× | 15.39× | 596× |
-| BN refreshed, NN stale | TreeLSTM + MLP | 1.14× | 6.30× | 92.62× |
-| fully retrained | PostgreSQL 16 | 1.84× | 357× | 38,109× |
+| BN refreshed, NN stale | MSCN (baseline) | 2.35× | 118× | 2,914× |
+| BN refreshed, NN stale | Fusion MLP | 1.28× | 16.06× | 350× |
+| BN refreshed, NN stale | TreeLSTM + MLP | 1.15× | 6.49× | 71.13× |
+| fully retrained | PostgreSQL 16 | 1.85× | 354× | 28,582× |
 | fully retrained | FactorJoin (Chow-Liu BN) | 1.41× | 30.20× | 955× |
-| fully retrained | MSCN (baseline) | 1.77× | 106× | 14,940× |
-| fully retrained | Fusion MLP | 1.20× | 13.90× | 836× |
-| fully retrained | TreeLSTM + MLP | 1.11× | 5.40× | 92.54× |
+| fully retrained | MSCN (baseline) | 1.62× | 33.74× | 955× |
+| fully retrained | Fusion MLP | 1.23× | 14.88× | 238× |
+| fully retrained | TreeLSTM + MLP | 1.11× | 6.67× | 111× |
 
 **Join-order quality** (DP optimizer on each estimator's sub-plan estimates, scored with true C_out):
 
@@ -127,35 +274,35 @@ Seed spread (each learned model trained with independent seeds):
 |---|---|---|---|
 | PostgreSQL 16 | 80.7% | 2.968× | 596× |
 | FactorJoin (Chow-Liu BN) | 88.1% | 2.284× | 596× |
-| MSCN (baseline) | 75.4% | 2.909× | 596× |
-| Fusion MLP | 89.4% | 2.277× | 596× |
-| TreeLSTM + MLP | 91.3% | 2.047× | 596× |
+| MSCN (baseline) | 82.3% | 2.662× | 596× |
+| Fusion MLP | 89.4% | 2.278× | 596× |
+| TreeLSTM + MLP | 91.7% | 2.026× | 596× |
 
 **Robustness** (guards and property checks):
 
 | Estimator | uncertainty fallback | clamped | order-invariant | monotone | latency p50 / p99 |
 |---|---|---|---|---|---|
-| PostgreSQL 16 | 0.0% | 0.0% | 62% | 100% | 2.7 / 10.4 ms |
-| FactorJoin (Chow-Liu BN) | 0.0% | 0.1% | 100% | 100% | 0.2 / 0.6 ms |
-| MSCN (baseline) | 4.9% | 1.8% | 100% | 74% | 6.0 / 32.1 ms |
-| Fusion MLP | 0.0% | 1.4% | 100% | 87% | 3.8 / 11.7 ms |
-| TreeLSTM + MLP | 0.0% | 0.7% | 100% | 72% | 7.3 / 26.8 ms |
-| exact execution | | | | | 21.6 / 125.2 ms |
+| PostgreSQL 16 | 0.0% | 0.0% | 61% | 100% | 2.5 / 5.8 ms |
+| FactorJoin (Chow-Liu BN) | 0.0% | 0.1% | 100% | 100% | 0.2 / 0.4 ms |
+| MSCN (baseline) | 51.1% | 2.5% | 100% | 85% | 5.1 / 8.3 ms |
+| Fusion MLP | 0.0% | 1.0% | 100% | 86% | 2.8 / 8.6 ms |
+| TreeLSTM + MLP | 1.5% | 0.1% | 100% | 79% | 5.1 / 13.1 ms |
+| exact execution | | | | | 17.6 / 87.5 ms |
 
 
 ### End-to-end runtime on PostgreSQL 16 (STATS-CEB)
 
-Each estimator's sub-plan cardinalities injected with pg_hint_plan, all 146 STATS-CEB queries executed, timeout 30 s (timeouts charged in full). Note: postgres baseline re-run on an idle machine; the first run overlapped Windows standby (649.5 s, 13 timeouts).
+Each estimator's sub-plan cardinalities injected with pg_hint_plan, all 146 STATS-CEB queries executed, timeout 30 s (timeouts charged in full).
 
 | Configuration | execution | + estimation | net vs PostgreSQL | timeouts | faster / slower queries (>10%) |
 |---|---|---|---|---|---|
-| PostgreSQL 16 (own estimates) | 595 s | – | 1.000× | 11 | 0 / 0 |
-| PostgreSQL 16 + CREATE STATISTICS | 639 s | – | 0.932× | 11 | 4 / 74 |
-| True cardinalities (oracle) | 585 s | n/a | 1.017× | 11 | 44 / 55 |
-| FactorJoin (Chow-Liu BN) | 580 s | 1.7 s | 1.024× | 11 | 35 / 43 |
-| MSCN (baseline) | 601 s | 16.0 s | 0.965× | 12 | 36 / 44 |
-| Fusion MLP | 583 s | 3.8 s | 1.016× | 12 | 41 / 29 |
-| TreeLSTM + MLP | 573 s | 4.7 s | 1.030× | 12 | 45 / 26 |
+| PostgreSQL 16 (own estimates) | 593 s | – | 1.000× | 11 | 0 / 0 |
+| PostgreSQL 16 + CREATE STATISTICS | 614 s | – | 0.965× | 11 | 24 / 34 |
+| True cardinalities (oracle) | 569 s | n/a | 1.041× | 11 | 72 / 21 |
+| FactorJoin (Chow-Liu BN) | 601 s | 2.9 s | 0.981× | 11 | 42 / 41 |
+| MSCN (baseline) | 600 s | 31.3 s | 0.938× | 10 | 46 / 45 |
+| Fusion MLP | 647 s | 8.6 s | 0.904× | 13 | 42 / 66 |
+| TreeLSTM + MLP | 621 s | 10.0 s | 0.939× | 12 | 37 / 80 |
 
 Estimation = time to estimate all 1566 sub-plans (one batched call per query, cold caches) after the latency optimisations; PostgreSQL's own planning time is excluded from every row alike. The oracle's true counts cannot be produced at planning time, so it is an upper bound.
 
@@ -488,7 +635,7 @@ http://127.0.0.1:8000 after `npm run build`. Set
   exactly where they were unsure.
 * Learned models do not extrapolate in cardinality: on `split_sel` (both tails of the
   true-count range held out) they are worse than FactorJoin (HR TreeLSTM p99 5,000× vs
-  623×). On the i.i.d. HR test set the TreeLSTM vs FactorJoin and MLP vs FactorJoin
+  623×; STATS TreeLSTM p99 2.8 × 10⁹ vs 1.3 × 10⁵). On the i.i.d. HR test set the TreeLSTM vs FactorJoin and MLP vs FactorJoin
   differences are inconclusive (paired CIs contain 0); the learned models' advantage is
   on unseen templates, unseen join sizes and rare/tiny-result queries.
 * The v3 features improved validation and the never-trained sets, but the single worst
@@ -496,5 +643,10 @@ http://127.0.0.1:8000 after `npm run build`. Set
   queries (top 1% of spread), but on validation the high-spread queries are ones where
   FactorJoin is the one that is wrong, so the calibrated fallback stays off for the fusion
   models. MSCN's spread is anti-correlated with its test error (Spearman −0.21).
+* End to end, better cardinalities have not turned into faster STATS-CEB execution: every
+  configuration lands within about ±10% of PostgreSQL's own total, the totals are
+  dominated by 10–13 queries that hit the 30 s timeout under every estimator, and in the
+  latest run the learned models were slightly slower (TreeLSTM 621 s vs 593 s). Even the
+  oracle (true counts) only saves ~4%.
 * Workloads are generated from the schema's join graph. STATS-CEB is the only
   human-written workload.
