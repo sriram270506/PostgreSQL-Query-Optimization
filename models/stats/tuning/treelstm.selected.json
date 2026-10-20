@@ -1,0 +1,91 @@
+{
+ "model": "treelstm",
+ "final_cfg": {
+  "use_tree": true,
+  "mlp_layers": 2,
+  "mlp_width": 32,
+  "dropout": 0.17380709005245684,
+  "activation": "relu",
+  "lr": 0.002031153271980547,
+  "weight_decay": 2.7718750033650887e-05,
+  "batch": 64,
+  "loss": "huber",
+  "embed": 128,
+  "hidden": 128
+ },
+ "criterion": "val mean + CVaR95 log Q-error",
+ "seeds": 2,
+ "candidates": [
+  {
+   "cfg": {
+    "use_tree": true,
+    "mlp_layers": 2,
+    "mlp_width": 32,
+    "dropout": 0.17380709005245684,
+    "activation": "relu",
+    "lr": 0.002031153271980547,
+    "weight_decay": 2.7718750033650887e-05,
+    "batch": 64,
+    "loss": "huber",
+    "embed": 128,
+    "hidden": 128
+   },
+   "candidate": 0,
+   "loss": "huber",
+   "tail_lambda": null,
+   "score": 3.9088533903788396,
+   "val_mean_log_q": 0.4233946367248634,
+   "val_cvar95": 3.485458753653976,
+   "val_p99_q": 68.34807642189351,
+   "seconds": 272.97286224365234
+  },
+  {
+   "cfg": {
+    "use_tree": true,
+    "mlp_layers": 2,
+    "mlp_width": 32,
+    "dropout": 0.17380709005245684,
+    "activation": "relu",
+    "lr": 0.002031153271980547,
+    "weight_decay": 2.7718750033650887e-05,
+    "batch": 64,
+    "loss": "tail",
+    "embed": 128,
+    "hidden": 128,
+    "tail_lambda": 1.0
+   },
+   "candidate": 0,
+   "loss": "tail",
+   "tail_lambda": 1.0,
+   "score": 4.022160366409837,
+   "val_mean_log_q": 0.43958269205956196,
+   "val_cvar95": 3.5825776743502753,
+   "val_p99_q": 66.74874038722838,
+   "seconds": 489.93860244750977
+  },
+  {
+   "cfg": {
+    "use_tree": true,
+    "mlp_layers": 2,
+    "mlp_width": 32,
+    "dropout": 0.17380709005245684,
+    "activation": "relu",
+    "lr": 0.002031153271980547,
+    "weight_decay": 2.7718750033650887e-05,
+    "batch": 64,
+    "loss": "tail",
+    "embed": 128,
+    "hidden": 128,
+    "tail_lambda": 3.0
+   },
+   "candidate": 0,
+   "loss": "tail",
+   "tail_lambda": 3.0,
+   "score": 4.038690438033945,
+   "val_mean_log_q": 0.46880692285166936,
+   "val_cvar95": 3.5698835151822754,
+   "val_p99_q": 62.7691590675299,
+   "seconds": 1477.7495968341827
+  }
+ ]
+}

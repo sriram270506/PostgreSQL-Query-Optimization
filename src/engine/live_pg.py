@@ -10,28 +10,59 @@
 """
 from __future__ import annotations
 
-import time
 from typing import Dict, Iterable, Optional, Tuple
 
 from .datasets import Dataset
 
 
+STATEMENT_TIMEOUT_MS = 5000   # default for EXPLAIN; run_hinted sets its own per call
+LOCK_TIMEOUT_MS = 2000
+
+
 def dsn_for(base: str, ds: Dataset) -> str:
-    """base DSN points at any database; HR lives in 'carddb', STATS in 'stats'."""
-    db = "stats" if ds.name.startswith("stats") else "carddb"
-    return base.rsplit("/", 1)[0] + "/" + db
+    """Same server and options (sslmode, host, user, ...) as `base`, but the dataset's
+    database: HR lives in 'carddb', STATS in 'stats'."""
+    from psycopg2.extensions import make_dsn, parse_dsn
+    opts = parse_dsn(base)
+    opts["dbname"] = "stats" if ds.name.startswith("stats") else "carddb"
+    return make_dsn(**opts)
 
 
 class LivePG:
+    """One session with bounded statements and locks. Use as a context manager (or call
+    close()) so the connection is released on every path."""
+
     def __init__(self, dsn: str):
         import psycopg2
         self.conn = psycopg2.connect(dsn, connect_timeout=5)
         self.conn.autocommit = True
         self.cur = self.conn.cursor()
-        self.cur.execute("SET max_parallel_workers_per_gather = 0")
+        try:
+            self.cur.execute("SET max_parallel_workers_per_gather = 0")
+            self.cur.execute(f"SET statement_timeout = {STATEMENT_TIMEOUT_MS}")
+            self.cur.execute(f"SET lock_timeout = {LOCK_TIMEOUT_MS}")
+        except Exception:
+            self.conn.close()
+            raise
 
     def close(self):
-        self.conn.close()
+        if not self.conn.closed:
+            self.conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    def server_info(self) -> dict:
+        """Version and the planner settings that change estimates/plans (for provenance)."""
+        self.cur.execute("SELECT version()")
+        v = self.cur.fetchone()[0]
+        self.cur.execute("SELECT name, setting FROM pg_settings WHERE name IN ('default_statistics_target', "
+                         "'random_page_cost', 'work_mem', 'shared_buffers', 'max_parallel_workers_per_gather', "
+                         "'join_collapse_limit', 'from_collapse_limit', 'geqo_threshold', 'effective_cache_size')")
+        return {"version": v, "settings": dict(self.cur.fetchall())}
 
     def explain_rows(self, sql: str) -> float:
         self.cur.execute("EXPLAIN (FORMAT JSON) " + sql)
@@ -41,6 +72,14 @@ class LivePG:
         return float(node["Plan Rows"])
 
     # ── extended statistics ─────────────────────────────────────────────────
+    def _maintenance(self, sql: str):
+        """ANALYZE and friends legitimately take longer than the per-query timeout."""
+        self.cur.execute("SET statement_timeout = 0")
+        try:
+            self.cur.execute(sql)
+        finally:
+            self.cur.execute(f"SET statement_timeout = {STATEMENT_TIMEOUT_MS}")
+
     def create_extended_stats(self, ds: Dataset):
         for t, cols in ds.filters.items():
             if len(cols) < 2:
@@ -48,12 +87,12 @@ class LivePG:
             self.cur.execute(f"DROP STATISTICS IF EXISTS xst_{t}")
             self.cur.execute(f"CREATE STATISTICS xst_{t} (ndistinct, dependencies, mcv) ON "
                              f"{', '.join(cols[:8])} FROM {t}")
-        self.cur.execute("ANALYZE")
+        self._maintenance("ANALYZE")
 
     def drop_extended_stats(self, ds: Dataset):
         for t in ds.filters:
             self.cur.execute(f"DROP STATISTICS IF EXISTS xst_{t}")
-        self.cur.execute("ANALYZE")
+        self._maintenance("ANALYZE")
 
     # ── hinted execution (pg_hint_plan) ─────────────────────────────────────
     def run_hinted(self, sql: str, rows: Optional[Dict[Tuple[str, ...], float]],
@@ -74,7 +113,8 @@ class LivePG:
                 return None, None
             raise
         finally:
-            self.cur.execute("SET statement_timeout = 0")
+            if not self.conn.closed:
+                self.cur.execute(f"SET statement_timeout = {STATEMENT_TIMEOUT_MS}")
 
 
 def _join_order(node: dict) -> str:

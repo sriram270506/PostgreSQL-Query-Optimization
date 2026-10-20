@@ -4,6 +4,7 @@ import { api, chartEstimators, EST_COLOR, EST_LABEL, EST_SHORT, fmtCompact, fmtI
 import type { Acc, Bench, PlanStats, QSummary, Sig, Tuning } from '../types'
 import { Card, ErrorBox, EstName, Legend, SectionHead, Seg, Skeleton, useTip } from '../components/ui'
 import { GroupedLogBars, HBars, LogScatter } from '../components/charts'
+import { Breakdown, Calibration, Comparisons, OOD_LABEL, SpecialSets } from '../components/analysis'
 
 const PCTS: [string, keyof QSummary][] = [['median', 'median'], ['p90', 'p90'], ['p95', 'p95'], ['p99', 'p99'], ['max', 'max']]
 const LEARNED = ['treelstm', 'mlp', 'mscn']
@@ -20,8 +21,9 @@ export default function Benchmark() {
   const [b, setB] = useState<Bench | null>(null)
   const [err, setErr] = useState('')
   const [set, setSet] = useState<'test' | 'ceb'>('test')
-  useEffect(() => { api<Bench>('/benchmark').then(setB).catch(e => setErr(e.message)) }, [])
-  if (err) return <section className="section"><ErrorBox error={`${err}. Run: python -m scripts.benchmark --dataset ${getDataset()}`} /></section>
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => { setErr(''); api<Bench>('/benchmark').then(setB).catch(e => setErr(e.message)) }, [attempt])
+  if (err) return <section className="section"><ErrorBox error={`${err}. Run: python -m scripts.benchmark --dataset ${getDataset()}`} onRetry={() => setAttempt(a => a + 1)} /></section>
   if (!b) return <section className="section"><Skeleton h={420} /></section>
   const useCeb = set === 'ceb' && !!b.ceb
   const A = useCeb ? b.ceb!.accuracy : b.accuracy
@@ -50,6 +52,7 @@ export default function Benchmark() {
         <h1 className="display" style={{ fontSize: 'clamp(36px,4.4vw,54px)' }}>Head to head on <em>{fmtInt(n)} unseen queries</em></h1>
         <p className="lede">The test set is never used for training, tuning or early stopping. True counts come from exact execution. PostgreSQL numbers come from a real PostgreSQL 16 server, with and without extended statistics.
           Train / validation / test: {fmtInt(b.n_train)} / {fmtInt(b.n_val)} / {fmtInt(b.n_test)}{b.ceb ? ', plus the 146 official STATS-CEB queries' : ''}.</p>
+        {b.provenance && <p className="note" style={{ marginTop: 10 }}>Produced by commit <span className="mono">{b.provenance.git_commit?.slice(0, 10) ?? 'unknown'}</span>{b.provenance.git_dirty ? ' (with uncommitted changes)' : ''} on {b.provenance.time_utc.slice(0, 10)} · data <span className="mono">{b.provenance.data_hash}</span> · workload <span className="mono">{b.provenance.workload_sha256}</span>{b.provenance.postgres?.version ? ` · ${b.provenance.postgres.version.split(' on ')[0]}` : ''}</p>}
       </section>
 
       <section className="section" style={{ paddingTop: 30 }}>
@@ -114,7 +117,11 @@ export default function Benchmark() {
         </div>
       </section>
 
+      <Breakdown b={b} />
+
       <Generalisation b={b} />
+
+      <Comparisons b={b} />
 
       {b.plans && (
         <section className="section">
@@ -178,22 +185,23 @@ function PlanCards({ plans }: { plans: Record<string, PlanStats> }) {
 
 function Generalisation({ b }: { b: Bench }) {
   const splits = Object.entries(b.ood)
-  const label: Record<string, string> = { split_tmpl: 'Unseen query templates', split_shape: 'Unseen join sizes (trained on 1–3 tables, tested on 4–5)' }
+  const label = OOD_LABEL
   if (!splits.length && !b.drift) return null
   return (
     <section className="section">
       <SectionHead eyebrow="Generalisation" title={<>Queries and data the models <em>never saw</em></>}>
-        The i.i.d. test set only tests "more of the same". Here the models are retrained with whole query templates, or all larger joins, held out{b.drift ? '. They are also built on a 2013 snapshot of the database and then served on today’s data, which is about twice as large' : ''}.
+        The i.i.d. test set only tests "more of the same". Here the models are retrained with whole query templates, join graphs, all larger joins, or both cardinality tails held out, and scored on sets of empty/tiny results and rare values they never trained on{b.drift ? '. They are also built on a 2013 snapshot of the database and then served on today’s data, which is about twice as large' : ''}.
       </SectionHead>
       <div className="grid g2">
         {splits.map(([k, v]) => (
-          <Card key={k} k={`${fmtInt(v.n)} queries`} title={label[k] ?? k}>
+          <Card key={k} k={`${fmtInt(v.n)} queries · retrained without them`} title={label[k] ?? k}>
             <table className="tbl num"><thead><tr><th>Estimator</th><th className="r">Median</th><th className="r">p95</th><th className="r">p99</th><th className="r">Max</th></tr></thead>
               <tbody>{estOrder(v.accuracy).map(nm => <tr key={nm}><td><EstName name={nm} /></td>
                 <td className="r">{fmtQ(v.accuracy[nm].overall.median)}</td><td className="r">{fmtQ(v.accuracy[nm].overall.p95)}</td>
                 <td className="r"><b>{fmtQ(v.accuracy[nm].overall.p99)}</b></td><td className="r">{fmtQ(v.accuracy[nm].overall.max)}</td></tr>)}</tbody></table>
           </Card>
         ))}
+        <SpecialSets b={b} />
         {b.drift && (
           <Card k="Data drift" title="Models built on the 2013 snapshot, served on today’s data">
             <table className="tbl num"><thead><tr><th>Variant</th><th>Estimator</th><th className="r">Median</th><th className="r">p95</th><th className="r">p99</th></tr></thead>
@@ -234,6 +242,7 @@ function Robustness({ b }: { b: Bench }) {
             })}</tbody></table>
           <p className="note" style={{ marginTop: 8 }}>*Share of queries where adding a filter did not raise the estimate. FactorJoin and PostgreSQL are monotone by construction. Learned models are not, and this shows how often they break the rule. "Raw &gt; bound" = estimates the clamp had to correct.</p>
         </Card>
+        <Calibration b={b} />
       </div>
     </section>
   )

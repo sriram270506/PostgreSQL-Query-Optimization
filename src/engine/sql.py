@@ -6,6 +6,7 @@ WHERE <conjunction of col OP literal | col BETWEEN lo AND hi | col IN (...) | a.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -170,6 +171,11 @@ def parse(sql: str, schema: Dict[str, List[str]]) -> Query:
     for bad in ("group", "having", "order"):
         if tree.args.get(bad):
             raise SQLError(f"{bad.upper()} BY is not supported")
+    # constructs we cannot execute exactly are rejected, never approximated
+    for arg, what in (("distinct", "SELECT DISTINCT"), ("offset", "OFFSET"), ("with", "WITH (CTEs)"),
+                      ("windows", "WINDOW"), ("qualify", "QUALIFY")):
+        if tree.args.get(arg):
+            raise SQLError(f"{what} is not supported")
     if tree.find(exp.Subquery) or tree.find(exp.Or) or tree.find(exp.Union):
         raise SQLError("subqueries / OR / UNION are not supported")
 
@@ -191,9 +197,23 @@ def parse(sql: str, schema: Dict[str, List[str]]) -> Query:
         add_rel(t)
     conds: List[exp.Expression] = []
     for j in tree.args.get("joins") or []:
+        if not isinstance(j.this, exp.Table):
+            raise SQLError("only base tables can be joined (no subqueries or table functions)")
+        side, kind = (j.args.get("side") or "").upper(), (j.args.get("kind") or "").upper()
+        if side or kind in ("OUTER", "SEMI", "ANTI", "STRAIGHT_JOIN"):
+            raise SQLError(f"{(side + ' ' + kind).strip() or kind} JOIN is not supported (inner equi-joins only)")
+        if (j.args.get("method") or "").upper() == "NATURAL":
+            raise SQLError("NATURAL JOIN is not supported; write the join condition with ON")
+        if j.args.get("using"):
+            raise SQLError("JOIN ... USING is not supported; write the join condition with ON")
         add_rel(j.this)
         if j.args.get("on") is not None:
             conds.append(j.args["on"])
+    # `a JOIN b` without ON parses like a comma join but is an error in PostgreSQL
+    bare = re.sub(r"'(?:[^']|'')*'", "''", sql.upper())
+    n_on_joins = len(re.findall(r"(?<!CROSS)\s+(?:INNER\s+)?JOIN\b", bare))
+    if n_on_joins > sum(1 for j in tree.args.get("joins") or [] if j.args.get("on") is not None):
+        raise SQLError("JOIN requires an ON condition (use CROSS JOIN or a comma for a cross product)")
 
     def resolve(col: exp.Column) -> Tuple[str, str]:
         name, tab = col.name.lower(), (col.table or "").lower()
@@ -257,7 +277,13 @@ def parse(sql: str, schema: Dict[str, List[str]]) -> Query:
 
     q = Query(rels=rels, joins=joins, preds=preds)
     sel = tree.expressions
+    if any(isinstance(x, exp.AggFunc) for s_ in sel for x in s_.find_all(exp.AggFunc)) and not (
+            len(sel) == 1 and isinstance(sel[0], exp.Count)):
+        raise SQLError("aggregates other than a single COUNT(*) are not supported")
     if len(sel) == 1 and isinstance(sel[0], exp.Count):
+        arg = sel[0].this
+        if not isinstance(arg, exp.Star):
+            raise SQLError("only COUNT(*) is supported (COUNT(column) and COUNT(DISTINCT ...) are not)")
         q.count = True
     else:
         q.count = False
@@ -276,5 +302,11 @@ def parse(sql: str, schema: Dict[str, List[str]]) -> Query:
             q.select = cols
     lim = tree.args.get("limit")
     if lim is not None:
-        q.limit = int(_literal(lim.expression))
+        try:
+            v = _literal(lim.expression)
+        except SQLError:
+            raise SQLError("LIMIT must be a non-negative integer literal") from None
+        if not isinstance(v, int) or v < 0:
+            raise SQLError("LIMIT must be a non-negative integer literal")
+        q.limit = v
     return q

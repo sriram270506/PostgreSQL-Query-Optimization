@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, Union
 
 from . import datasets
 from .datasets import Dataset
-from .executor import Catalog, Executor
+from .executor import DEFAULT_BUDGET_S, Catalog, Executor, check_complexity
 from .pg_planner import PGPlanner
 from .sql import Join, Pred, Query, SQLError, parse
 
@@ -32,15 +32,21 @@ class Engine:
     def true_count(self, q: Query) -> int:
         return self.executor.count(q)[0]
 
-    def run(self, sql: str, row_limit: Optional[int] = None) -> Dict[str, Any]:
-        """Execute `sql`: exact count, fetched rows, per-relation actual vs planner rows."""
+    def run(self, sql: str, row_limit: Optional[int] = None, budget_s: float = DEFAULT_BUDGET_S) -> Dict[str, Any]:
+        """Execute `sql`: exact count, fetched rows, per-relation actual vs planner rows.
+        Raises SQLError for unsupported or over-budget queries (complexity caps, time budget)."""
         q = self.parse(sql)
-        t0 = time.perf_counter()
-        count, filtered, subtree = self.executor.count(q)
-        count_ms = (time.perf_counter() - t0) * 1000
-        t1 = time.perf_counter()
-        frame = None if q.count else self.executor.fetch(q, row_limit)
-        fetch_ms = (time.perf_counter() - t1) * 1000
+        check_complexity(q)
+        self.executor.deadline = time.monotonic() + budget_s
+        try:
+            t0 = time.perf_counter()
+            count, filtered, subtree = self.executor.count(q)
+            count_ms = (time.perf_counter() - t0) * 1000
+            t1 = time.perf_counter()
+            frame = None if q.count else self.executor.fetch(q, row_limit)
+            fetch_ms = (time.perf_counter() - t1) * 1000
+        finally:
+            self.executor.deadline = None
         t2 = time.perf_counter()
         pg_est = self.planner.estimate(q.sub(q.rels))
         pg_ms = (time.perf_counter() - t2) * 1000

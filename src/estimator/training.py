@@ -24,7 +24,7 @@ from .neural import Dataset as TreeData, Featurizer, log_qerror
 from .neural import predict as tree_predict
 from .neural import train as tree_train
 
-FORMAT_VERSION = 2
+FORMAT_VERSION = 3  # v3: weights-only artifacts + node/join statistics features
 NEURAL = ("mlp", "treelstm", "mscn")
 DEFAULT_CFG = {
     "mlp": {"use_tree": False, "mlp_layers": 3, "mlp_width": 128, "dropout": 0.2, "activation": "gelu",
@@ -114,20 +114,69 @@ def model_path(dataset_models_dir: str, split: str, name: str, seed: int) -> str
     return os.path.join(dataset_models_dir, split, f"{name}_s{seed}.pt")
 
 
+def _plain(x):
+    """Only tensors and plain Python types, so artifacts load with weights_only=True."""
+    if isinstance(x, dict):
+        return {str(k): _plain(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_plain(v) for v in x]
+    if isinstance(x, np.ndarray):
+        return torch.from_numpy(np.ascontiguousarray(x))
+    if isinstance(x, np.generic):
+        return x.item()
+    return x
+
+
 def save(bundle: dict, path: str):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    torch.save(bundle, path)
+    tmp = path + ".tmp"
+    torch.save(_plain(bundle), tmp)
+    os.replace(tmp, path)
+
+
+class InvalidArtifact(ValueError):
+    pass
 
 
 def load_bundle(path: str) -> dict:
-    return torch.load(path, weights_only=False)
+    """Load a model artifact without executing pickled code (weights_only=True) and
+    validate its schema before anything uses it."""
+    try:
+        b = torch.load(path, weights_only=True)
+    except Exception as e:
+        raise InvalidArtifact(f"{path}: not a weights-only artifact ({str(e).splitlines()[0]})") from None
+    req = {"kind": str, "cfg": dict, "state": dict, "version": int, "data_hash": str, "dataset": str}
+    for k, t in req.items():
+        if not isinstance(b.get(k), t):
+            raise InvalidArtifact(f"{path}: field {k!r} missing or not {t.__name__}")
+    if b["kind"] not in ("fusion", "mscn"):
+        raise InvalidArtifact(f"{path}: unknown model kind {b['kind']!r}")
+    if not all(isinstance(v, torch.Tensor) for v in b["state"].values()):
+        raise InvalidArtifact(f"{path}: state must contain tensors only")
+    if b["kind"] == "fusion":
+        names = b.get("stats_names")
+        if not (isinstance(names, list) and all(isinstance(n, str) for n in names) and isinstance(b.get("node_dim"), int)):
+            raise InvalidArtifact(f"{path}: bad stats_names/node_dim")
+        for k in ("mean", "std"):
+            v = b.get(k)
+            if not (isinstance(v, torch.Tensor) and v.dim() == 1 and len(v) == len(names)):
+                raise InvalidArtifact(f"{path}: {k} must be a 1-D tensor of len(stats_names)")
+            b[k] = v.numpy()
+    else:
+        dims = b.get("dims")
+        if not (isinstance(dims, list) and len(dims) == 3 and all(isinstance(d, int) for d in dims)):
+            raise InvalidArtifact(f"{path}: bad dims")
+        b["dims"] = tuple(dims)
+    return b
 
 
 def tuned_cfg(models_dir: str, name: str) -> dict:
-    p = os.path.join(models_dir, "tuning", f"{name}.json")
-    if os.path.exists(p):
-        with open(p) as f:
-            return json.load(f)["final_cfg"]
+    """The tail-aware selection (scripts.select_model) if present, else the Optuna best."""
+    for f in (f"{name}.selected.json", f"{name}.json"):
+        p = os.path.join(models_dir, "tuning", f)
+        if os.path.exists(p):
+            with open(p) as fh:
+                return json.load(fh)["final_cfg"]
     return dict(DEFAULT_CFG[name])
 
 
@@ -162,10 +211,15 @@ def load_ensembles(models_dir: str, split: str = "split") -> Dict[str, list]:
     for f in sorted(os.listdir(d)):
         if f.endswith(".pt") and "_s" in f:
             name = f.rsplit("_s", 1)[0]
-            b = load_bundle(os.path.join(d, f))
-            if b.get("version") != FORMAT_VERSION:
-                continue  # incompatible feature format: never serve it
-            out.setdefault(name, []).append((build_model(b), b))
+            try:
+                b = load_bundle(os.path.join(d, f))
+                if b["version"] != FORMAT_VERSION:
+                    continue  # incompatible feature format: never serve it
+                model = build_model(b)  # strict load: shapes must match the declared config
+            except (InvalidArtifact, RuntimeError, KeyError) as e:
+                print(f"skipping model artifact {f}: {e}")
+                continue
+            out.setdefault(name, []).append((model, b))
     return out
 
 

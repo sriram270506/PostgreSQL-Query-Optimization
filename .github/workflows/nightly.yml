@@ -1,0 +1,54 @@
+name: nightly
+
+# Full evaluation against a real PostgreSQL 16 (+ pg_hint_plan) and the real STATS data.
+# Every test must run: CI_REQUIRE_ALL turns any skip into a failure.
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      POSTGRES_PASSWORD: ci-only-password
+      PG_DSN: postgresql://postgres:ci-only-password@127.0.0.1:55432/carddb
+      CI_REQUIRE_ALL: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install (CPU torch first, then the exact lockfile)
+        run: |
+          pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.lock
+      - name: Fetch STATS (pinned commit, checksums verified)
+        run: |
+          python -m scripts.fetch_stats
+          python -m scripts.make_drift --cutoff 2013-06-01
+      - name: Start PostgreSQL 16 + pg_hint_plan
+        run: |
+          docker compose up -d --build --wait
+          python -m scripts.init_postgres --dataset hr --yes
+          python -m scripts.init_postgres --dataset stats --yes
+      - name: All tests, including live-PostgreSQL parity (no skips allowed)
+        run: pytest -q
+      - name: Accuracy regression gates (300-query subsamples, live PostgreSQL included)
+        run: |
+          python -m scripts.benchmark --dataset hr --quick --out bench_hr.json
+          python -m scripts.check_regression --current bench_hr.json --baseline models/benchmark.json
+          python -m scripts.benchmark --dataset stats --quick --out bench_stats.json
+          python -m scripts.check_regression --current bench_stats.json --baseline models/stats/benchmark.json
+      - name: End-to-end smoke (first 20 STATS-CEB queries under every estimator)
+        run: python -m scripts.e2e_runtime --limit 20 --timeout 10 --out e2e_smoke.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-results
+          path: |
+            bench_hr.json
+            bench_stats.json
+            e2e_smoke.json

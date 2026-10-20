@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { api, fmtInt, getDataset, seq } from '../lib'
+import { api, isAbort, fmtInt, getDataset, seq } from '../lib'
 import { Card, ErrorBox, SectionHead, Skeleton } from '../components/ui'
 import { Heatmap } from '../components/charts'
 
@@ -13,7 +13,11 @@ export default function DataEngine() {
   const [err, setErr] = useState('')
   const [table, setTable] = useState('')
   const stats = getDataset() === 'stats'
-  useEffect(() => { api<Schema>('/schema').then(r => { setS(r); setTable(r.tables[stats ? 1 : 1]?.name ?? r.tables[0].name) }).catch(e => setErr(e.message)) }, [stats])
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    setErr('')
+    api<Schema>('/schema').then(r => { setS(r); setTable(r.tables[1]?.name ?? r.tables[0].name) }).catch(e => setErr(e.message))
+  }, [stats, attempt])
   return (
     <>
       <section style={{ paddingTop: 48 }}>
@@ -26,7 +30,7 @@ export default function DataEngine() {
           <p className="lede">A synthetic HR schema with dependencies built in. Engineering sits mostly in Bangalore, Bangalore projects get bigger budgets, and age, experience and salary rise together. These are exactly the cases where the independence assumption fails.</p>
         </>}
       </section>
-      {err && <section className="section"><ErrorBox error={err} /></section>}
+      {err && <section className="section"><ErrorBox error={err} onRetry={() => setAttempt(a => a + 1)} /></section>}
       {!s && !err && <section className="section"><Skeleton h={200} /></section>}
       {s && <>
         <section className="section">
@@ -123,8 +127,16 @@ function BNView({ table }: { table: string }) {
 function Browser({ table }: { table: string }) {
   const [page, setPage] = useState(1)
   const [d, setD] = useState<Rows | null>(null)
+  const [err, setErr] = useState('')
+  const [attempt, setAttempt] = useState(0)
   useEffect(() => setPage(1), [table])
-  useEffect(() => { api<Rows>(`/tables/${table}?page=${page}&page_size=15`).then(setD).catch(() => setD(null)) }, [table, page])
+  useEffect(() => {
+    const ac = new AbortController()  // switching table/page cancels the previous request
+    setD(null); setErr('')
+    api<Rows>(`/tables/${table}?page=${page}&page_size=15`, undefined, ac.signal).then(setD)
+      .catch(e => { if (!isAbort(e)) setErr(e.message) })
+    return () => ac.abort()
+  }, [table, page, attempt])
   const pages = d ? Math.ceil(d.total / d.page_size) : 1
   return (
     <section className="section">
@@ -134,7 +146,7 @@ function Browser({ table }: { table: string }) {
           <span className="note num">{page} / {pages}</span>
           <button className="chip" disabled={page >= pages} onClick={() => setPage(p => p + 1)} aria-label="Next page"><ChevronRight size={14} /></button>
         </div>}>
-        {!d ? <Skeleton h={200} /> : (
+        {err ? <ErrorBox error={err} onRetry={() => setAttempt(a => a + 1)} /> : !d ? <Skeleton h={200} /> : (
           <div className="scroll-x"><table className="tbl mono">
             <thead><tr>{d.columns.map(c => <th key={c}>{c}</th>)}</tr></thead>
             <tbody>{d.rows.map((r, i) => <tr key={i}>{r.map((v, j) => <td key={j}>{String(v)}</td>)}</tr>)}</tbody>

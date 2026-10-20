@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Play, Shuffle, Trophy } from 'lucide-react'
-import { api, EST_COLOR, EST_SHORT, fmtCompact, fmtInt, fmtMs, fmtQ, getDataset } from '../lib'
+import { api, isAbort, EST_COLOR, EST_SHORT, fmtCompact, fmtInt, fmtMs, fmtQ, getDataset } from '../lib'
 import type { RunResult } from '../types'
 import { Card, ErrorBox, EstName, Seg, Skeleton } from '../components/ui'
 import { PlanTree } from '../components/charts'
@@ -26,10 +26,16 @@ export default function QueryLab() {
   const [samples, setSamples] = useState<{ sql: string; category: string }[]>([])
   const [cat, setCat] = useState('3-way join')
 
+  const inflight = useRef<AbortController | null>(null)
+  // only the latest request may update the page: a slow earlier query never overwrites a newer one
   const run = async (s = sql) => {
+    inflight.current?.abort()
+    const ac = new AbortController()
+    inflight.current = ac
     setBusy(true); setErr('')
-    try { setRes(await api<RunResult>('/run', { sql: s, row_limit: 100 })) } catch (e) { setErr((e as Error).message); setRes(null) }
-    setBusy(false)
+    try { setRes(await api<RunResult>('/run', { sql: s, row_limit: 100 }, ac.signal)) }
+    catch (e) { if (isAbort(e)) return; setErr((e as Error).message); setRes(null) }
+    finally { if (inflight.current === ac) setBusy(false) }
   }
   const loadSamples = (c = cat) => api<{ sql: string; category: string }[]>(`/workload/sample?category=${encodeURIComponent(c)}&n=4`).then(setSamples).catch(() => setSamples([]))
   useEffect(() => { run(); loadSamples() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -56,7 +62,7 @@ export default function QueryLab() {
                 {starters().map((s, i) => <button key={i} className="chip" onClick={() => { setSql(s); run(s) }}>Example {i + 1}</button>)}
               </div>
             </div>
-            {err && <div style={{ marginTop: 14 }}><ErrorBox error={err} /></div>}
+            {err && <div style={{ marginTop: 14 }}><ErrorBox error={err} onRetry={() => run()} /></div>}
           </Card>
           <Card k="From the test workload" right={<button className="chip" onClick={() => loadSamples()} aria-label="New samples"><Shuffle size={13} aria-hidden /></button>}>
             <div className="chips" style={{ marginBottom: 12 }}>
@@ -74,13 +80,13 @@ export default function QueryLab() {
 
       {busy && !res && <section className="section"><Skeleton h={260} /></section>}
       {res && (
-        <>
+        <div aria-busy={busy} style={{ opacity: busy ? 0.45 : 1, transition: 'opacity .15s' }}>
           <section className="section" style={{ paddingTop: 36 }}>
             <div className="stats">
               <div className="stat"><div className="v num">{fmtInt(res.count)}</div><div className="l">True rows (exact)</div><div className="d">counted by the engine</div></div>
               <div className="stat"><div className="v num">{fmtMs(res.count_ms).replace(' ms', '')}<small>ms</small></div><div className="l">Exact count time</div><div className="d">{res.rows ? `+ ${fmtMs(res.fetch_ms)} to fetch rows` : 'COUNT(*) query'}</div></div>
-              <div className="stat"><div className="v" style={{ fontSize: 24, paddingTop: 6 }}><EstName name={res.best} /></div><div className="l">Closest estimate</div>
-                <div className="d">{fmtQ(res.estimators.find(e => e.name === res.best)!.qerror)} off the true count</div></div>
+              <div className="stat"><div className="v" style={{ fontSize: 24, paddingTop: 6 }}><EstName name={res.best} /></div><div className="l">Closest on this query</div>
+                <div className="d">{fmtQ(res.estimators.find(e => e.name === res.best)!.qerror)} off · scored after execution; one query says little, see Benchmark for p95/p99</div></div>
               <div className="stat"><div className="v num">{res.scan.length}</div><div className="l">Tables</div><div className="d">{res.scan.reduce((n, s) => n + s.preds.length, 0)} filter conditions</div></div>
             </div>
           </section>
@@ -89,7 +95,7 @@ export default function QueryLab() {
             <Card k="Shoot-out" title="Estimated vs true rows">
               <div className="scroll-x">
                 <table className="tbl">
-                  <thead><tr><th>Estimator</th><th className="r">Estimate</th><th className="r">True</th><th style={{ width: '34%' }}>Q-error (log scale)</th><th className="r">Latency</th><th /></tr></thead>
+                  <thead><tr><th>Estimator</th><th className="r" title="Made at planning time, before the query runs">Estimate (pre-run)</th><th className="r" title="Exact count from running the query">True (post-run)</th><th style={{ width: '34%' }}>Q-error (log scale)</th><th className="r">Latency</th><th /></tr></thead>
                   <tbody>
                     {res.estimators.map(e => (
                       <tr key={e.name}>
@@ -112,7 +118,8 @@ export default function QueryLab() {
                   </tbody>
                 </table>
               </div>
-              <p className="note" style={{ marginTop: 10 }}>Provable upper bound for this query: {fmtCompact(res.upper_bound)} rows. No estimate is allowed above it.
+              <p className="note" style={{ marginTop: 10 }}>Estimates are what each estimator would hand the planner <b>before</b> the query runs; the true count only exists afterwards, so "closest" is a retrospective score, not something a planner could know.
+                Provable upper bound for this query: {fmtCompact(res.upper_bound)} rows. No estimate is allowed above it.
                 Learned models are {res.estimators.find(e => e.std !== undefined && e.std > 0) ? 'multi-seed ensembles; "fallback" means the seeds disagreed and FactorJoin answered' : 'served as ensembles'}.</p>
               {res.postgres_live_error && <p className="note" style={{ marginTop: 6 }}>Live PostgreSQL unavailable: {res.postgres_live_error}</p>}
             </Card>
@@ -153,7 +160,7 @@ export default function QueryLab() {
               </Card>
             </section>
           )}
-        </>
+        </div>
       )}
     </>
   )

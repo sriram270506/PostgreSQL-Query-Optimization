@@ -16,15 +16,20 @@ timeout are charged the timeout. Writes models/stats/e2e.json.
 import argparse
 import json
 import os
+import sys
 import time
 
 import numpy as np
 
 from src.engine import optimizer
 from src.engine.live_pg import LivePG, dsn_for
+from scripts.benchmark import provenance
 from src.estimator.service import Estimators
 
-PG_DSN = os.environ.get("PG_DSN", "postgresql://postgres:postgres@127.0.0.1:55432/carddb")
+from src.env import load_dotenv
+
+load_dotenv()
+PG_DSN = os.environ.get("PG_DSN")  # no default credentials: set it in .env
 
 
 def estimation_cost(path: str):
@@ -68,6 +73,8 @@ def main():
         estimation_cost(args.out)
         return
 
+    if not PG_DSN:
+        raise SystemExit("PG_DSN is not set (see .env.example): the end-to-end test needs a real PostgreSQL")
     S = Estimators("stats")
     pg = LivePG(dsn_for(PG_DSN, S.ds))
     lines = [l.strip().split("||", 1) for l in open(os.path.join(S.ds.csv_dir, "stats_CEB.sql"))]
@@ -119,7 +126,8 @@ def main():
             summary[c].update(speedup_total=float(base.sum() / ms.sum()),
                               faster_queries=int((ratio < 0.9).sum()), slower_queries=int((ratio > 1.1).sum()))
     out = {"timeout_s": args.timeout, "n_queries": len(queries), "summary": summary,
-           "per_query_ms": {c: r["ms"] for c, r in res.items()}, "true": [c for c, _, _ in queries]}
+           "per_query_ms": {c: r["ms"] for c, r in res.items()}, "true": [c for c, _, _ in queries],
+           "provenance": provenance(S, pg, sys.argv)}
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w") as f:
         json.dump(out, f)

@@ -4,28 +4,46 @@
 
 Every endpoint takes ?dataset=hr|stats (default hr). Queries execute on the in-process
 engine; learned estimators are guarded ensembles (src/estimator/service.py). If PG_DSN is
-set, /api/run also reports the live estimate of a real PostgreSQL server.
+set (.env), /api/run also reports the estimate of a real PostgreSQL server.
+
+Protection (see .env.example): CARDLAB_API_KEY requires an X-API-Key header on every data
+endpoint; expensive endpoints are rate-limited per client and capped in concurrency; each
+query runs under complexity limits and a time budget. The server refuses to bind to a
+non-loopback address without an API key.
 """
+import hmac
+import ipaddress
 import json
 import math
 import os
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from collections import defaultdict, deque
+from typing import Any, Deque, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query as Q
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.engine import SQLError, datasets, optimizer
 from src.engine.live_pg import LivePG, dsn_for
+from src.env import load_dotenv
 from src.estimator import viz
 from src.estimator.service import LABELS, Estimators, qerror
 
+load_dotenv()
+
 MAX_PLAN_RELS = 6
+REQUEST_BUDGET_S = float(os.environ.get("CARDLAB_BUDGET_S", "10"))
+MAX_CONCURRENT = int(os.environ.get("CARDLAB_MAX_CONCURRENT", "4"))
+RATE_PER_MIN = int(os.environ.get("CARDLAB_RATE_PER_MIN", "60"))
+API_KEY = os.environ.get("CARDLAB_API_KEY") or None
+OPEN_PATHS = {"/api/health", "/api/ready", "/api/datasets"}
+EXPENSIVE = {"/api/run", "/api/viz/trace", "/api/viz/global"}
 SERVED = [d for d in ("hr", "stats") if os.path.exists(os.path.join(datasets.get(d).csv_dir,
                                                                     next(iter(datasets.get(d).files.values()))))]
 
@@ -38,6 +56,45 @@ _services: Dict[str, Estimators] = {}
 _workloads: Dict[str, Optional[pd.DataFrame]] = {}
 _viz_cache: Dict[str, dict] = {}
 _load_lock = threading.Lock()
+_slots = threading.BoundedSemaphore(MAX_CONCURRENT)
+_hits: Dict[str, Deque[float]] = defaultdict(deque)
+_hits_lock = threading.Lock()
+
+
+# ── protection ───────────────────────────────────────────────────────────────
+
+@app.middleware("http")
+async def protect(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/api") and path not in OPEN_PATHS:
+        if API_KEY and not hmac.compare_digest(request.headers.get("x-api-key", ""), API_KEY):
+            return JSONResponse({"detail": "missing or invalid API key (X-API-Key header)"}, status_code=401)
+        if path in EXPENSIVE:
+            client = request.client.host if request.client else "?"
+            now = time.monotonic()
+            with _hits_lock:
+                q = _hits[client]
+                while q and now - q[0] > 60:
+                    q.popleft()
+                if len(q) >= RATE_PER_MIN:
+                    return JSONResponse({"detail": f"rate limit: {RATE_PER_MIN} expensive requests per minute"},
+                                        status_code=429, headers={"Retry-After": "10"})
+                q.append(now)
+    resp = await call_next(request)
+    if not path.startswith(("/api", "/assets")):
+        resp.headers["Cache-Control"] = "no-cache"  # index.html must never be cached across rebuilds
+    return resp
+
+
+class _Slot:
+    """Concurrency cap for expensive work: 503 instead of queueing without bound."""
+
+    def __enter__(self):
+        if not _slots.acquire(timeout=2):
+            raise HTTPException(503, "server busy, retry shortly", headers={"Retry-After": "2"})
+
+    def __exit__(self, *exc):
+        _slots.release()
 
 
 def svc(dataset: str) -> Estimators:
@@ -53,7 +110,7 @@ def svc(dataset: str) -> Estimators:
 
 def _json_file(path: str) -> dict:
     if not os.path.exists(path):
-        raise HTTPException(404, f"{path} not found - run the training/benchmark scripts first")
+        raise HTTPException(404, f"{os.path.basename(path)} not found - run the training/benchmark scripts first")
     with open(path) as f:
         return json.load(f)
 
@@ -81,10 +138,21 @@ def list_datasets():
 @app.get("/api/health")
 def health(dataset: str = "hr"):
     S = svc(dataset)
-    return {"status": "ok", "dataset": dataset, "estimators": S.available(),
+    return {"status": "ok" if S.healthy() else "degraded", "dataset": dataset, "estimators": S.available(),
             "tables": {t: tb.n for t, tb in S.engine.catalog.tables.items()},
             "workload": 0 if _workloads[dataset] is None else len(_workloads[dataset]),
             "postgres_live": bool(os.environ.get("PG_DSN")), "data_hash": S.fingerprint, "stale_models": S.stale}
+
+
+@app.get("/api/ready")
+def ready():
+    """Readiness: 503 while any learned model was trained on different data (it is being
+    answered by FactorJoin until retrained)."""
+    stale = {d: [n for n, s in svc(d).stale.items() if s] for d in SERVED}
+    bad = {d: v for d, v in stale.items() if v}
+    if bad:
+        return JSONResponse({"ready": False, "stale_models": bad}, status_code=503)
+    return {"ready": True}
 
 
 @app.get("/api/schema")
@@ -142,7 +210,7 @@ def workload_sample(dataset: str = "hr", category: Optional[str] = None, n: int 
     df = wl[wl.split == "test"]
     if category:
         df = df[df.category == category]
-    df = df.sample(n=min(n, len(df)), random_state=seed)
+    df = df.sample(n=min(max(n, 1), 20, len(df)), random_state=seed)
     return [{"sql": r.sql, "category": r.category, "true_count": int(r.true_count)} for r in df.itertuples()]
 
 
@@ -159,9 +227,9 @@ def _live_pg(dataset: str) -> Optional[LivePG]:
     return LivePG(dsn_for(base, datasets.get(dataset))) if base else None
 
 
-def _postgres_live(pg: Optional[LivePG], sql: str) -> Optional[dict]:
+def _postgres_live(pg: Optional[LivePG], sql: str) -> dict:
     if pg is None:
-        return {"error": "PostgreSQL not connected (set PG_DSN and run docker compose up -d)"}
+        return {"error": "PostgreSQL not connected (set PG_DSN in .env and run docker compose up -d)"}
     try:
         t0 = time.perf_counter()
         est = pg.explain_rows(sql)  # sql is the engine's normalised SELECT
@@ -170,12 +238,23 @@ def _postgres_live(pg: Optional[LivePG], sql: str) -> Optional[dict]:
         return {"error": str(e).splitlines()[0]}
 
 
-def _plans(S: Estimators, q, names: List[str], pg: Optional[LivePG] = None) -> Optional[dict]:
-    if len(q.rels) < 3 or len(q.rels) > MAX_PLAN_RELS:
-        return None
+def _plans(S: Estimators, q, names: List[str], pg: Optional[LivePG] = None) -> dict:
+    """Join-order comparison. Optional: anything it cannot handle is reported, never raised."""
+    if len(q.rels) < 3:
+        return {"skipped": "join-order comparison needs 3 or more tables"}
+    if len(q.rels) > MAX_PLAN_RELS:
+        return {"skipped": f"join-order comparison is limited to {MAX_PLAN_RELS} tables"}
+    if not optimizer.is_connected(q):
+        return {"skipped": "the query contains a cross product (tables without a join condition)"}
     subsets = optimizer.connected_subsets(q)
     subq = [q.sub(s) for s in subsets]
-    true = {s: float(S.engine.true_count(sq)) for s, sq in zip(subsets, subq)}
+    S.engine.executor.deadline = time.monotonic() + REQUEST_BUDGET_S
+    try:
+        true = {s: float(S.engine.true_count(sq)) for s, sq in zip(subsets, subq)}
+    except SQLError as e:
+        return {"skipped": f"sub-plan counting stopped: {e}"}
+    finally:
+        S.engine.executor.deadline = None
     opt_cost, opt_plan = optimizer.best_plan(q, true)
     out = {"optimal_cost": opt_cost, "optimal": optimizer.annotate(opt_plan, true, true), "estimators": {}}
     est_by = {n: S.estimate_many(subq, n)["est"].tolist() for n in names}
@@ -196,48 +275,47 @@ def _plans(S: Estimators, q, names: List[str], pg: Optional[LivePG] = None) -> O
 @app.post("/api/run")
 def run(req: RunRequest):
     S = svc(req.dataset)
-    try:
-        res = S.engine.run(req.sql, req.row_limit)
-    except SQLError as e:
-        raise HTTPException(400, str(e))
-    q = res["query"]
-    count_q = q.sub(q.rels)
-    names = S.available()
-    ests = []
-    for n in names:
+    with _Slot():
         try:
+            res = S.engine.run(req.sql, req.row_limit, budget_s=REQUEST_BUDGET_S)
+        except SQLError as e:
+            raise HTTPException(400, str(e))
+        q = res["query"]
+        count_q = q.sub(q.rels)
+        names = S.available()
+        ests = []
+        for n in names:
             est, ms, info = S.estimate(count_q, n)
-        except Exception as e:  # pragma: no cover - service already falls back internally
-            raise HTTPException(500, f"{n} failed: {e}")
-        ests.append({"name": n, "label": LABELS[n], "estimate": est, "latency_ms": ms,
-                     "qerror": float(qerror(est, res["count"])), "under": est < max(res["count"], 1), **info})
-    try:
-        pg = _live_pg(req.dataset)
-    except Exception as e:
-        pg, pg_err = None, str(e).splitlines()[0]
-    else:
-        pg_err = None
-    live = _postgres_live(pg, count_q.to_sql())
-    if "estimate" in live:
-        ests.insert(0, {"name": "postgres_live", "label": LABELS["postgres_live"], "estimate": live["estimate"],
-                        "latency_ms": live["latency_ms"], "qerror": float(qerror(live["estimate"], res["count"])),
-                        "under": live["estimate"] < max(res["count"], 1)})
-    S.log_feedback(count_q.to_sql(), res["count"], {e["name"]: e["estimate"] for e in ests})
+            ests.append({"name": n, "label": LABELS[n], "estimate": est, "latency_ms": ms,
+                         "qerror": float(qerror(est, res["count"])), "under": est < max(res["count"], 1), **info})
+        pg, pg_err = None, None
+        try:
+            pg = _live_pg(req.dataset)
+        except Exception as e:
+            pg_err = str(e).splitlines()[0]
+        try:
+            live = _postgres_live(pg, count_q.to_sql())
+            if "estimate" in live:
+                ests.insert(0, {"name": "postgres_live", "label": LABELS["postgres_live"], "estimate": live["estimate"],
+                                "latency_ms": live["latency_ms"], "qerror": float(qerror(live["estimate"], res["count"])),
+                                "under": live["estimate"] < max(res["count"], 1)})
+            scan = []
+            for a, s in res["scan"].items():
+                pg_rows = None
+                if pg is not None:
+                    try:
+                        pg_rows = pg.explain_rows(count_q.sub([a]).to_sql())
+                    except Exception:
+                        pass
+                scan.append({"table": s["table"], "actual": s["actual"], "total": s["total"], "pg": pg_rows,
+                             "alias": a, "factorjoin": S.fj.table_estimate(count_q, a),
+                             "preds": [p.to_sql() for p in q.preds_of(a)]})
+            plans = _plans(S, count_q, names, pg)
+        finally:
+            if pg is not None:
+                pg.close()
+        S.log_feedback(count_q, res["count"], {e["name"]: e["estimate"] for e in ests})
     rows = res["rows"]
-    scan = []
-    for a, s in res["scan"].items():
-        one = count_q.sub([a])
-        pg_rows = None
-        if pg is not None:
-            try:
-                pg_rows = pg.explain_rows(one.to_sql())
-            except Exception:
-                pass
-        scan.append({"table": s["table"], "actual": s["actual"], "total": s["total"], "pg": pg_rows, "alias": a,
-                     "factorjoin": S.fj.table_estimate(count_q, a), "preds": [p.to_sql() for p in q.preds_of(a)]})
-    plans = _plans(S, count_q, names, pg)
-    if pg is not None:
-        pg.close()
     return {
         "sql": q.to_sql(), "count": res["count"], "dataset": req.dataset,
         "exec_ms": res["count_ms"] + res["fetch_ms"], "count_ms": res["count_ms"], "fetch_ms": res["fetch_ms"],
@@ -248,7 +326,8 @@ def run(req: RunRequest):
         "best": min(ests, key=lambda e: e["qerror"])["name"],
         "upper_bound": S.bounds.upper(count_q),
         "scan": scan,
-        "plans": plans,
+        "plans": plans if "estimators" in plans else None,
+        "plans_note": plans.get("skipped"),
         "postgres_live_error": pg_err or live.get("error"),
     }
 
@@ -262,6 +341,7 @@ def feedback(dataset: str = "hr", window: int = 500):
 
 @app.get("/api/benchmark")
 def benchmark(dataset: str = "hr"):
+    svc(dataset)
     return _json_file(os.path.join(datasets.get(dataset).models_dir, "benchmark.json"))
 
 
@@ -269,6 +349,7 @@ def benchmark(dataset: str = "hr"):
 def tuning(name: str, dataset: str = "hr"):
     if name not in ("mlp", "treelstm", "mscn"):
         raise HTTPException(404, "unknown model")
+    svc(dataset)
     ds = datasets.get(dataset)
     out = _json_file(os.path.join(ds.models_dir, "tuning", f"{name}.json"))
     meta = os.path.join(ds.models_dir, "split", "ensemble.json")
@@ -289,9 +370,10 @@ def _viz_global(dataset: str, name: str) -> dict:
             with open(path) as f:
                 _viz_cache[key] = json.load(f)
         else:
-            wl = _workloads[dataset]
-            df = wl[wl.split == "test"].sample(n=min(800, (wl.split == "test").sum()), random_state=0)
-            data = viz.global_analysis(S, [S.engine.parse(s) for s in df.sql], name)
+            with _Slot():
+                wl = _workloads[dataset]
+                df = wl[wl.split == "test"].sample(n=min(800, int((wl.split == "test").sum())), random_state=0)
+                data = viz.global_analysis(S, [S.engine.parse(s) for s in df.sql], name)
             with open(path, "w") as f:
                 json.dump(data, f)
             _viz_cache[key] = data
@@ -313,23 +395,14 @@ class TraceRequest(BaseModel):
 def viz_trace(req: TraceRequest):
     g = _viz_global(req.dataset, req.model)
     S = svc(req.dataset)
-    try:
-        q = S.engine.parse(req.sql)
-    except SQLError as e:
-        raise HTTPException(400, str(e))
-    out = viz.trace_query(S, q, g.get("probes", {}), req.model)
-    out["true_count"] = S.engine.true_count(q.sub(q.rels))
+    with _Slot():
+        try:
+            res = S.engine.run(req.sql, 1, budget_s=REQUEST_BUDGET_S)
+        except SQLError as e:
+            raise HTTPException(400, str(e))
+        out = viz.trace_query(S, res["query"], g.get("probes", {}), req.model)
+    out["true_count"] = res["count"]
     return out
-
-
-@app.middleware("http")
-async def no_stale_ui(request, call_next):
-    """Hashed asset files may be cached forever; index.html must not, or browsers keep
-    loading an old bundle after a rebuild."""
-    resp = await call_next(request)
-    if not request.url.path.startswith(("/api", "/assets")):
-        resp.headers["Cache-Control"] = "no-cache"
-    return resp
 
 
 DIST = os.path.join("frontend", "dist")
@@ -337,6 +410,16 @@ if os.path.isdir(DIST):  # serve the built UI from the same origin
     app.mount("/", StaticFiles(directory=DIST, html=True), name="ui")
 
 
+def _is_loopback(host: str) -> bool:
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return host == "localhost"
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    host = os.environ.get("CARDLAB_HOST", "127.0.0.1")
+    if not _is_loopback(host) and not API_KEY:
+        raise SystemExit(f"Refusing to listen on {host} without CARDLAB_API_KEY (see .env.example)")
+    uvicorn.run(app, host=host, port=int(os.environ.get("CARDLAB_PORT", "8000")))

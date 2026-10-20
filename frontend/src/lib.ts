@@ -36,11 +36,12 @@ export function setDataset(d: string) {
   try { localStorage.setItem('dataset', d) } catch { /* storage blocked */ }
 }
 
-export async function api<T>(path: string, body?: unknown): Promise<T> {
+export async function api<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const sep = path.includes('?') ? '&' : '?'
   const url = body === undefined ? `/api${path}${sep}dataset=${currentDataset}` : `/api${path}`
   const payload = body && typeof body === 'object' ? { dataset: currentDataset, ...body } : body
-  const res = await fetch(url, payload === undefined ? undefined : {
+  const res = await fetch(url, payload === undefined ? { signal } : {
+    signal,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -52,6 +53,8 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
   }
   return res.json()
 }
+
+export const isAbort = (e: unknown) => e instanceof DOMException && e.name === 'AbortError'
 
 export const fmtInt = (n: number) => Math.round(n).toLocaleString('en-US')
 export function fmtCompact(n: number): string {

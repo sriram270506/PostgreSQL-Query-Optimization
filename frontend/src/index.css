@@ -9,7 +9,7 @@
   --ink: #261a1d;
   --ink-2: #57484b;
   --muted: #7d7174;
-  --faint: #a39699;
+  --faint: #7a6c70; /* 4.9:1 on white: small uppercase labels stay readable */
   --paper: #f5f2ef;
   --card: #ffffff;
   --line: #eee6e5;
@@ -148,3 +148,17 @@ h3.sub { font-size: 16px; font-weight: 700; margin: 0 0 4px; letter-spacing: -.0
 .ds-switch button { border: 0; background: transparent; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700; color: var(--ink-2); letter-spacing: .04em; }
 .ds-switch button.on { background: #fff; color: var(--maroon); box-shadow: 0 1px 3px #0001; }
 .ci { font-size: 10.5px; color: var(--faint); display: block; }
+
+/* tabular alternative under charts */
+.chart-table { margin-top: 10px; font-size: 13px; }
+.chart-table summary { cursor: pointer; color: var(--muted); font-weight: 600; width: fit-content; }
+.chart-table .tbl { margin-top: 8px; }
+.tbl tbody th { text-transform: none; letter-spacing: 0; font-size: 13.5px; color: var(--ink); font-weight: 600; }
+
+/* narrow viewports: controls wrap instead of forcing horizontal scroll */
+@media (max-width: 620px) {
+  .card-head { flex-wrap: wrap; gap: 10px; }
+  .seg { flex-wrap: wrap; border-radius: 16px; max-width: 100%; }
+  .seg button { min-height: 36px; }
+  .chips { margin-left: 0 !important; }
+}

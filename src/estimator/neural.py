@@ -60,14 +60,51 @@ class Featurizer:
         self.slices = {"type": (0, 4), "table": (4, 4 + nt), "column": (4 + nt, 4 + nt + nc),
                        "op": (4 + nt + nc, 4 + nt + nc + len(OPS))}
         o = self.slices["op"][1]
-        self.slices["literal"] = (o, o + 4)  # lo, hi, width, n_values/10
-        self.slices["value"] = (o + 4, o + 4 + len(self.vocab))
-        # per-node statistics: PRED -> log selectivity; SCAN -> BN / PG log selectivity;
-        # JOIN, AGG -> log FactorJoin / PG estimate of the subtree (scaled to ~[0, 1])
-        self.slices["stat"] = (o + 4 + len(self.vocab), o + 6 + len(self.vocab))
-        self.dim = o + 6 + len(self.vocab)
+        # literal: value-distribution (CDF) positions lo, hi, width; n_values/10; unseen flag
+        self.slices["literal"] = (o, o + 5)
+        self.slices["value"] = (o + 5, o + 5 + len(self.vocab))
+        # per-node statistics (all from table statistics, never from query results), ~[0, 1]:
+        #   PRED: log selectivity, log10 matching rows
+        #   SCAN: log BN selectivity, log PG selectivity, log10 table rows, n filters
+        #   JOIN: log FJ / PG estimate of the subtree, log max key fan-out on each side,
+        #         key overlap both ways, heavy-hitter share
+        #   AGG:  log FJ / PG estimate, log provable upper bound
+        o2 = o + 5 + len(self.vocab)
+        self.slices["stat"] = (o2, o2 + 8)
+        self.dim = o2 + 8
         self.stats_names = ([f"present_{t}" for t in self.tables] + [f"bn_logsel_{t}" for t in self.tables]
-                            + ["log_fj", "log_pg", "n_tables", "n_preds"])
+                            + ["log_fj", "log_pg", "n_tables", "n_preds",
+                               "log_upper_bound", "log_max_fanout", "min_pred_logsel", "any_unseen"])
+        from .bounds import Bounds
+        self.bounds = Bounds(catalog)
+        self._key_cache: Dict[tuple, tuple] = {}
+
+    # data statistics used as features
+    def _cdf(self, table: str, col: str, x, side: str) -> float:
+        vals, _ = self.cat.tables[table].sorted_col(col)
+        if not len(vals):
+            return 0.0
+        try:
+            x = float(x) if self.cat.tables[table].numeric[col] else str(x)
+        except (TypeError, ValueError):
+            return 0.0
+        return float(np.searchsorted(vals, x, side)) / len(vals)
+
+    def _key_stats(self, ta: str, ca: str, tb: str, cb: str) -> tuple:
+        """(log max fan-out a, log max fan-out b, overlap a->b, overlap b->a, heavy share)."""
+        k = (ta, ca, tb, cb)
+        if k not in self._key_cache:
+            def side(t, c):
+                v = self.cat.tables[t].cols[c]
+                v = v[np.asarray(pd.notna(v))]
+                u, cnt = np.unique(v.astype(str) if v.dtype == object else v, return_counts=True)
+                return u, (int(cnt.max()) if len(cnt) else 0), (float(cnt.max() / cnt.sum()) if len(cnt) else 0.0)
+            ua, da, ha = side(ta, ca)
+            ub, db, hb = side(tb, cb)
+            inter = len(np.intersect1d(ua, ub, assume_unique=True))
+            self._key_cache[k] = (math.log1p(da) / 12, math.log1p(db) / 12, inter / max(len(ua), 1),
+                                  inter / max(len(ub), 1), max(ha, hb))
+        return self._key_cache[k]
 
     def _node(self, kind: str, table: Optional[str] = None, cols=(), op=None, pred=None) -> np.ndarray:
         v = np.zeros(self.dim, dtype=np.float32)
@@ -81,21 +118,29 @@ class Featurizer:
         if pred is not None:
             lo_i = self.slices["literal"][0]
             vals = pred.value if pred.op in ("between", "in") else (pred.value,)
-            key = (table, pred.col)
-            if key in self.range:
-                mn, mx = self.range[key]
-                norm = [(float(x) - mn) / (mx - mn or 1) for x in vals]
-                lo, hi = min(norm), max(norm)
-                if pred.op in ("lt", "le"):
-                    lo = 0.0
-                elif pred.op in ("gt", "ge"):
-                    lo, hi = hi, 1.0
-                v[lo_i:lo_i + 3] = [lo, hi, hi - lo]
+            c = pred.col
+            # positions in the column's value distribution (robust to skew, unlike min-max)
+            L = lambda x: self._cdf(table, c, x, "left")   # noqa: E731
+            R = lambda x: self._cdf(table, c, x, "right")  # noqa: E731
+            if pred.op in ("eq", "ne", "in"):
+                lo, hi = min(L(x) for x in vals), max(R(x) for x in vals)
+            elif pred.op == "between":
+                lo, hi = L(vals[0]), R(vals[1])
             else:
+                lo, hi = {"lt": (0.0, L(vals[0])), "le": (0.0, R(vals[0])),
+                          "gt": (R(vals[0]), 1.0), "ge": (L(vals[0]), 1.0)}[pred.op]
+            v[lo_i:lo_i + 3] = [lo, hi, max(hi - lo, 0.0)]
+            v[lo_i + 3] = len(vals) / 10
+            unseen = False
+            if not self.cat.tables[table].numeric[c]:
                 for x in vals:
                     if str(x) in self.vocab_idx:
                         v[self.slices["value"][0] + self.vocab_idx[str(x)]] = 1
-            v[lo_i + 3] = len(vals) / 10
+                    else:
+                        unseen = True
+            elif pred.op in ("eq", "in"):
+                unseen = all(R(x) - L(x) == 0 for x in vals)  # value(s) absent from the column
+            v[lo_i + 4] = float(unseen)
         return v
 
     def tree(self, q: Query) -> TreeSample:
@@ -139,7 +184,8 @@ class Featurizer:
                     return scan(first, par)
                 j, new = order[k]
                 cols = [f"{q.rels[j.a]}.{j.acol}", f"{q.rels[j.b]}.{j.bcol}"]
-                n = add(self._node("JOIN", None, cols, "eq"), par, f"JOIN {j.to_sql()}", {"kind": "JOIN"})
+                n = add(self._node("JOIN", None, cols, "eq"), par, f"JOIN {j.to_sql()}",
+                        {"kind": "JOIN", "join": (q.rels[j.a], j.acol, q.rels[j.b], j.bcol)})
                 build(k - 1, n)
                 scan(new, n)
                 return n
@@ -158,14 +204,23 @@ class Featurizer:
         for v, m in zip(feats, meta):
             if m["kind"] == "PRED":
                 tb = self.cat.tables[m["table"]]
-                v[st] = math.log(max(pred_count(tb, m["pred"]) / max(tb.n, 1), 1e-6)) / 14
+                cnt = pred_count(tb, m["pred"])
+                v[st] = math.log(max(cnt / max(tb.n, 1), 1e-6)) / 14
+                v[st + 1] = math.log10(cnt + 1) / 7
             elif m["kind"] == "SCAN":
+                tb = self.cat.tables[m["table"]]
                 v[st] = math.log(max(self.fj.selectivity(q, m["alias"]), 1e-9)) / 14
-                v[st + 1] = math.log(self.pg.rel_rows(q, m["alias"]) / max(self.cat.tables[m["table"]].n, 1)) / 14
+                v[st + 1] = math.log(self.pg.rel_rows(q, m["alias"]) / max(tb.n, 1)) / 14
+                v[st + 2] = math.log10(tb.n + 1) / 7
+                v[st + 3] = len(q.preds_of(m["alias"])) / 5
             else:
                 sub = q.sub(m["aliases"])
                 v[st] = math.log1p(self.fj.estimate(sub)) / 20
                 v[st + 1] = math.log1p(self.pg.estimate(sub)) / 20
+                if m["kind"] == "JOIN":
+                    v[st + 2:st + 7] = self._key_stats(*m["join"])
+                else:
+                    v[st + 2] = math.log1p(self.bounds.upper(q)) / 40
         return TreeSample(np.stack(feats), parent_a, height, labels, meta)
 
     def stats(self, q: Query) -> np.ndarray:
@@ -180,6 +235,13 @@ class Featurizer:
         v[2 * nt + 1] = math.log1p(self.pg.estimate(q))
         v[2 * nt + 2] = len(q.rels)
         v[2 * nt + 3] = len(q.preds)
+        v[2 * nt + 4] = math.log1p(self.bounds.upper(q))
+        fan = [self._key_stats(q.rels[j.a], j.acol, q.rels[j.b], j.bcol) for j in q.joins]
+        v[2 * nt + 5] = max((max(f[0], f[1]) for f in fan), default=0.0)
+        sels = [pred_count(self.cat.tables[q.rels[p.alias]], p) / max(self.cat.tables[q.rels[p.alias]].n, 1)
+                for p in q.preds]
+        v[2 * nt + 6] = math.log(max(min(sels, default=1.0), 1e-9))
+        v[2 * nt + 7] = float(any(x == 0 for x in sels))
         return v
 
 
@@ -301,6 +363,33 @@ def log_qerror(pred_log1p: np.ndarray, true: np.ndarray) -> np.ndarray:
     return np.abs(np.log(est) - np.log(np.maximum(true, 1.0)))
 
 
+LOG2 = math.log(2.0)
+
+
+def make_loss(cfg: Dict):
+    """Training loss on log(1+rows). "tail" adds a squared hinge on errors beyond 2x, so
+    the rare large misses (which dominate p95/p99) get extra weight."""
+    kind, lam = cfg.get("loss", "mse"), float(cfg.get("tail_lambda", 1.0))
+    if kind == "huber":
+        return nn.HuberLoss(delta=1.0)
+    if kind == "tail":
+        def tail(pred, y):
+            e = (pred - y).abs()
+            return (e ** 2).mean() + lam * (torch.relu(e - LOG2) ** 2).mean()
+        return tail
+    return nn.MSELoss()
+
+
+def val_score(logq: np.ndarray, cfg: Dict) -> float:
+    """Early-stopping / selection score: mean log Q-error, or with select="tail" the mean
+    plus the mean of the worst 5% (CVaR95), so tail regressions are not traded for the median."""
+    m = float(logq.mean())
+    if cfg.get("select") != "tail" or not len(logq):
+        return m
+    k = max(1, int(np.ceil(0.05 * len(logq))))
+    return m + float(np.sort(logq)[-k:].mean())
+
+
 def predict(model: FusionModel, ds: Dataset, idx=None, bs: int = 512) -> np.ndarray:
     idx = np.arange(len(ds.trees)) if idx is None else np.asarray(idx)
     model.eval()
@@ -319,7 +408,7 @@ def train(cfg: Dict, ds: Dataset, tr_idx, va_idx, node_dim: int, max_epochs: int
     rng = np.random.default_rng(seed)
     model = FusionModel(node_dim, ds.stats.shape[1], cfg)
     opt = torch.optim.AdamW(model.parameters(), lr=cfg["lr"], weight_decay=cfg["weight_decay"])
-    loss_fn = nn.HuberLoss(delta=1.0) if cfg.get("loss") == "huber" else nn.MSELoss()
+    loss_fn = make_loss(cfg)
     best, best_state, bad, hist = math.inf, None, 0, []
     tr_idx = np.asarray(tr_idx)
     for ep in range(max_epochs):
@@ -334,7 +423,7 @@ def train(cfg: Dict, ds: Dataset, tr_idx, va_idx, node_dim: int, max_epochs: int
             nn.utils.clip_grad_norm_(model.parameters(), 5.0)
             opt.step()
             tot += loss.item() * len(b["roots"])
-        val = float(log_qerror(predict(model, ds, va_idx), ds.y[va_idx]).mean())
+        val = val_score(log_qerror(predict(model, ds, va_idx), ds.y[va_idx]), cfg)
         hist.append({"epoch": ep, "train_loss": tot / len(perm), "val_mean_log_q": val})
         if report:
             report(ep, val)
